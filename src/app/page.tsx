@@ -1,102 +1,69 @@
 "use client";
-import Image from "next/image";
-import Link from "next/link";
 import React, { useEffect, useState } from "react";
-import "./globals.css";
-import logo from "./logofromfigma.png";
-import { ModeToggle } from "@/components/dark-mode-toggle";
-import { ThemeProvider } from "@/components/theme-provider";
+import { useRouter, useSearchParams } from "next/navigation";
+import ky from "ky";
 
 const Page: React.FC = () => {
-  const [isClient, setIsClient] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<string>("");
+  const [ltik, setLtik] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
+  // Get ltik from search parameters and determine redirection
   useEffect(() => {
-    setIsClient(true);
+    // Get ltik from search parameters
+    const ltikValue = searchParams.get("ltik");
+    if (ltikValue) {
+      setLtik(ltikValue);
 
-    const storedOption = sessionStorage.getItem("userRole");
-    if (storedOption) {
-      setSelectedOption(storedOption); // Restore the selection from sessionStorage
+      const getInfo = async () => {
+        try {
+          const launchInfo: { roles?: string[] } = await ky
+            .get("https://amusing-happily-tomcat.ngrok-free.app/info", {
+              credentials: "include",
+              headers: { Authorization: "Bearer " + ltikValue },
+            })
+            .json();
+
+          // Redirect based on user role
+          if (
+            launchInfo.roles &&
+            launchInfo.roles.includes(
+              "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
+            )
+          ) {
+            router.replace(`/assignments?ltik=${ltikValue}`); // Redirect to the student page
+          } else if (
+            launchInfo.roles &&
+            launchInfo.roles.includes(
+              "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
+            )
+          ) {
+            router.replace(`/admin/assignments?ltik=${ltikValue}`); // Redirect to the teacher page
+          } else {
+            setIsLoading(false); // If no valid role found, stop loading
+          }
+        } catch (err) {
+          console.error("Failed trying to retrieve custom parameters!", err);
+          setIsLoading(false); // Stop loading in case of error
+        }
+      };
+
+      getInfo();
+    } else {
+      setIsLoading(false); // No ltik found, stop loading
     }
-  }, []);
+  }, [searchParams, router]);
 
-  if (!isClient) {
-    return null;
+  // Render nothing until the role evaluation or redirection is complete
+  if (isLoading) {
+    return null; // Optionally, you can add a loading spinner here
   }
 
-  const handleOptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const option = e.target.value;
-    setSelectedOption(option);
-    sessionStorage.setItem("userRole", option); // Store selection in sessionStorage
-  };
-
-  // Conditional link routing based on user type
-  const getRedirectUrl = () => {
-    if (selectedOption === "Teachers") {
-      return "admin/assignments"; // Redirect to the assignment editing page for teachers
-    } else if (selectedOption === "Students") {
-      return "/assignments"; // Redirect to the chat page for students
-    }
-    return "#"; // Default URL if no option is selected
-  };
-
+  // If no ltik or no valid role, display a fallback message or nothing
   return (
-    <div className="page-container">
-      <header className="header">
-        <div className="logo-container">
-          <Image
-            src={logo}
-            alt="Logo"
-            className="logo"
-            width={100}
-            height={100}
-          />
-          <span className="logo-text">&quot;We are Learners&quot;</span>
-        </div>
-        <ThemeProvider>
-          <ModeToggle />
-          </ThemeProvider>
-      </header>
-      <section className="intro-container">
-        <h1 className="intro-page-head">Empower your assignment with AI</h1>
-        <p className="intro-page-para-head">
-          Our AI Assistant helps high school students excel in their studies by
-          providing personalized feedback, expert advice, and secure document
-          storage.
-        </p>
-
-        {/* Radio Button Implementation */}
-        <form className="radio-container">
-          <label className="radio-label">
-            <input
-              type="radio"
-              value="Students"
-              checked={selectedOption === "Students"}
-              onChange={handleOptionChange}
-            />
-            Student
-          </label>
-
-          <label className="radio-label">
-            <input
-              type="radio"
-              value="Teachers"
-              checked={selectedOption === "Teachers"}
-              onChange={handleOptionChange}
-            />
-            Teacher
-          </label>
-        </form>
-
-        {/* Conditional rendering based on selected option */}
-        {selectedOption && (
-          <Link href={getRedirectUrl()}>
-            <button className="intro-page-button">
-              Proceed to {selectedOption}
-            </button>
-          </Link>
-        )}
-      </section>
+    <div>
+      <p>No valid LTI key provided or user role could not be determined.</p>
     </div>
   );
 };
