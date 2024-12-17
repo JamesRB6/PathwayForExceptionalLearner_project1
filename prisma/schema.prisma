@@ -24,3 +24,22 @@ model Assignment {
   createdAt        DateTime @default(now())  // Timestamp when the assignment is created
   updatedAt        DateTime @updatedAt       // Timestamp that updates automatically when the record is updated
 }
+
+model Exam {
+  id         Int        @id @default(autoincrement())
+  title      String
+  subject    String
+  date       DateTime
+  updatedAt  DateTime   @updatedAt
+  questions  Question[] 
+}
+
+model Question {
+  id             Int     @id @default(autoincrement())
+  questionText   String
+  markingCriteria String?
+  examId         Int
+  exam           Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+}
+
+

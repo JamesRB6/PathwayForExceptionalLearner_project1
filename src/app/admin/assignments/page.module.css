@@ -1,0 +1,180 @@
+.customCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 16px; 
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1); 
+  padding: 20px; 
+  background: #fff; 
+  transition: transform 0.2s, box-shadow 0.2s; 
+  cursor: pointer;
+  width: 250px; 
+  height: 300px; 
+  margin: 5px; 
+  text-align: center; 
+  flex: 0 0 auto; 
+}
+
+.customCard:hover {
+  transform: translateY(-4px); 
+  box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.15); 
+}
+
+.customAvatar {
+  width: 80px; 
+  height: 80px;
+  border-radius: 50%; 
+  background-color: #e0f7fa; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px; 
+  color: #00796b; 
+  margin-bottom: 16px; 
+}
+
+.cardContent {
+  flex: 1; 
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.cardTitle {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #333; 
+}
+
+.cardSubtitle {
+  font-size: 14px;
+  color: #666; 
+  margin-bottom: 16px; 
+}
+
+.cardActions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto; 
+}
+
+.editButton,
+.deleteButton {
+  border: none;
+  background-color: #f0f0f0; 
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 14px;
+  color: #333;
+}
+
+.editButton:hover,
+.deleteButton:hover {
+  background-color: #e0e0e0; 
+}
+
+.assignmentsLink {
+  font-size: 14px;
+  color: #0070f3; 
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.assignmentsLink:hover {
+  text-decoration: underline;
+}
+
+.subjectGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.subjectTag {
+  background-color: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.subjectSection {
+  margin-bottom: 2rem;
+}
+
+.subjectHeading {
+  margin-bottom: 1rem;
+  color: #333;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 0.5rem;
+}
+
+.cardRowContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  overflow: visible; 
+  z-index: 1;
+}
+
+.cardRow {
+  display: flex;
+  flex-direction: row !important;
+  flex-wrap: nowrap; 
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  overflow-x: hidden; 
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  width: 100%;
+}
+
+.assignmentCard {
+  flex: 0 0 auto; 
+}
+
+/* Scroll Buttons */
+.scrollButtonLeft,
+.scrollButtonRight {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  z-index: 2;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  color: #333; /* Ensures icon color is visible */
+}
+
+.scrollButtonLeft svg,
+.scrollButtonRight svg {
+  opacity: 1;
+  color: currentColor;
+  width: 20px;
+  height: 20px;
+}
+
+.scrollButtonLeft {
+  left: -20px; /* Adjusted for better positioning */
+}
+
+.scrollButtonRight {
+  right: -20px; /* Adjusted for better positioning */
+}
+
+.scrollButtonLeft:hover,
+.scrollButtonRight:hover {
+  background: #f5f5f5;
+}

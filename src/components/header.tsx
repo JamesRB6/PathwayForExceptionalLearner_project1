@@ -6,8 +6,18 @@ import { RocketIcon } from "@radix-ui/react-icons";
 import { TabNav } from "@radix-ui/themes";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 export function Header() {
   const local = usePathname();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <TabNav.Root className="px-4 items-center">
