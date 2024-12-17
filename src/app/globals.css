@@ -1,7 +1,6 @@
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
-@next /next/no-img-element;
 @import url("https://fonts.googleapis.com/css2?family=Italianno&display=swap");
 
 @layer base {
@@ -535,31 +534,13 @@ body {
   min-height: auto;
 }
 
-.assignment-form,
-.assignment-list {
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  flex: 1;
-}
+
 
 .assignment-form {
   flex: 1;
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
-}
-
-.assignment-list {
-  max-width: 55%;
-}
-
-.dark .assignment-form,
-.dark .assignment-list {
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(255, 255, 255, 0.1);
-  flex: 1;
 }
 
 h1,
@@ -741,15 +722,6 @@ input {
   color: #000;
 }
 
-.mentions.read-only {
-  color: #999;
-  overflow-y: auto;
-}
-
-.dark .mentions.read-only {
-  background-color: #57595a;
-  color: white;
-}
 
 .dark .mentions__mention {
   background-color: #9bb2c9;

@@ -1,18 +1,26 @@
 "use client";
-
+import styles from "./page.module.css";
 import { useState, useEffect, useMemo } from "react";
 import SelectMenu from '@/components/select-menu/selectmenu';
 import { SubjectOptions, Biology, History, SubjectOption } from '@/components/select-menu/data';
 import { MentionsInput, Mention, SuggestionDataItem } from 'react-mentions';
 import { Container, Flex, Heading } from "@radix-ui/themes";
-import styles from "./page.module.css";
 import { CaretRightIcon, CaretLeftIcon } from "@radix-ui/react-icons";
 import React from "react";
+import { usePathname } from "next/navigation";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 interface Question {
   id: number;
-  questionText: string;
-  markingCriteria?: string | null;
+  text: string;
+  markingCriteria?: string;
 }
 
 interface Exam {
@@ -21,7 +29,7 @@ interface Exam {
   subject: string;
   date: string;
   updatedAt: string;
-  questions: Question[];
+  questions: {id: number; questionText: string; markingCriteria?: string;}[];
 }
 
 interface Assignment {
@@ -61,14 +69,18 @@ export default function AssignmentListPage() {
   const [examTitle, setExamTitle] = useState("");
   const [examSubject, setExamSubject] = useState("");
   const [examDate, setExamDate] = useState("");
-  const [examQuestions, setExamQuestions] = useState("");
   const [examErrorMessage, setExamErrorMessage] = useState<string | null>(null);
   const [examSuccessMessage, setExamSuccessMessage] = useState<string | null>(null);
   const [showExamEditForm, setShowExamEditForm] = useState(false);
 
+  // New states for questions UI
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [newQuestionText, setNewQuestionText] = useState("");
+  const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null);
+  const [markingCriteriaForSelected, setMarkingCriteriaForSelected] = useState("");
+
   const [scrollStates, setScrollStates] = useState<{ [subject: string]: { showScrollButtons: boolean } }>({});
 
-  // Fetch assignments on mount
   useEffect(() => {
     fetch("/api/assignment")
       .then((res) => res.json())
@@ -76,7 +88,7 @@ export default function AssignmentListPage() {
       .catch((err) => console.error("Error fetching assignments", err));
   }, []);
 
-  // Fetch exams when in exam view
+  // When viewing exams, fetch them
   useEffect(() => {
     if (viewMode === 'exams') {
       fetch("/api/exams")
@@ -137,6 +149,15 @@ export default function AssignmentListPage() {
     { id: 'biology-prompt', display: 'biology-prompt' },
     { id: 'history-prompt', display: 'history-prompt' },
   ];
+  const processTemplateText = (text: string) => {
+    const templateMap: { [key: string]: string } = {
+      'biology-prompt': Biology,
+      'history-prompt': History,
+    };
+    return text.replace(/@\[([^\]]+)\]\(([^)]+)\)/g, (match, display, id) => {
+      return templateMap[id] || match;
+    });
+  };
 
   const handleSubjectChange = (selectedOption: SubjectOption | null) => {
     if (
@@ -205,8 +226,6 @@ export default function AssignmentListPage() {
     }
   };
 
-  // ONE FUNCTION TO HANDLE EDIT
-  // This sets the appropriate form states based on whether it's an assignment or an exam
   function handleEditItem(type: "assignment" | "exam", item: Assignment | Exam) {
     if (type === "assignment") {
       const assignment = item as Assignment;
@@ -226,12 +245,22 @@ export default function AssignmentListPage() {
       setExamSubject(exam.subject);
       setExamDate(exam.date);
       setEditingExamId(exam.id);
+      
+      // Convert exam.questions to local questions state
+      const convertedQuestions = exam.questions.map((q) => ({
+        id: q.id,
+        text: q.questionText,
+        markingCriteria: q.markingCriteria || ""
+      }));
+      setQuestions(convertedQuestions);
+      setSelectedQuestionId(null);
+      setNewQuestionText("");
+      setMarkingCriteriaForSelected("");
+
       setShowExamEditForm(true);
     }
   }
 
-  // ONE FUNCTION TO HANDLE DELETE
-  // This function deletes either an assignment or an exam and updates the relevant state.
   async function handleDeleteItem(
     type: "assignment" | "exam",
     id: number
@@ -258,7 +287,6 @@ export default function AssignmentListPage() {
     }
   }
 
-  // Functions for handling assignment submission (as before)
   const handleSubmitAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !subject || !learningOutcomes || !markingCriteria) {
@@ -335,7 +363,37 @@ export default function AssignmentListPage() {
     setShowForm(true);
   };
 
-  // Exam creation as before
+  // NEW HANDLER FUNCTIONS AND STATES FOR QUESTIONS
+  function handleAddQuestion() {
+    if (newQuestionText.trim()) {
+      const newQuestion = {
+        id: Date.now(),
+        text: newQuestionText.trim(),
+        markingCriteria: ""
+      };
+      setQuestions([...questions, newQuestion]);
+      setNewQuestionText("");
+
+      if (selectedQuestionId === null) {
+        setSelectedQuestionId(newQuestion.id);
+        setMarkingCriteriaForSelected("");
+      }
+    }
+  }
+
+  function handleSelectQuestion(id: number) {
+    setSelectedQuestionId(id);
+    const q = questions.find(q => q.id === id);
+    if (q) {
+      setMarkingCriteriaForSelected(q.markingCriteria || "");
+    }
+  }
+
+  function handleMarkingCriteriaChange(val: string) {
+    setMarkingCriteriaForSelected(val);
+    setQuestions(questions.map(q => q.id === selectedQuestionId ? { ...q, markingCriteria: val } : q));
+  }
+
   const handleExamSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!examTitle || !examSubject || !examDate) {
@@ -343,15 +401,10 @@ export default function AssignmentListPage() {
       return;
     }
 
-    let questionsArray: { questionText: string, markingCriteria?: string }[] = [];
-    const lines = examQuestions.split("\n").filter(line => line.trim() !== "");
-    for (const line of lines) {
-      const parts = line.split("|").map(part => part.trim());
-      const qText = parts[0];
-      const qCriteria = parts[1] || "";
-      if (!qText) continue;
-      questionsArray.push({ questionText: qText, markingCriteria: qCriteria });
-    }
+    const questionsArray = questions.map(q => ({
+      questionText: q.text,
+      markingCriteria: q.markingCriteria || ""
+    }));
 
     try {
       const response = await fetch("/api/exams", {
@@ -371,9 +424,14 @@ export default function AssignmentListPage() {
         setExamTitle("");
         setExamSubject("");
         setExamDate("");
-        setExamQuestions("");
         setExamErrorMessage(null);
+        setExamSuccessMessage(null);
         setShowExamForm(false);
+        // Reset question states
+        setQuestions([]);
+        setNewQuestionText("");
+        setSelectedQuestionId(null);
+        setMarkingCriteriaForSelected("");
       } else {
         setExamErrorMessage("Failed to add exam");
       }
@@ -383,10 +441,14 @@ export default function AssignmentListPage() {
     }
   };
 
-  // Updating an exam after editing form submission (similar logic as assignments)
   const handleUpdateExam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingExamId) return;
+
+    const questionsArray = questions.map(q => ({
+      questionText: q.text,
+      markingCriteria: q.markingCriteria || ""
+    }));
 
     try {
       const response = await fetch(`/api/exams/${editingExamId}`, {
@@ -396,6 +458,7 @@ export default function AssignmentListPage() {
           title: examTitle,
           subject: examSubject,
           date: examDate,
+          questions: questionsArray,
         }),
       });
 
@@ -420,6 +483,11 @@ export default function AssignmentListPage() {
     setExamDate("");
     setExamErrorMessage(null);
     setExamSuccessMessage(null);
+    // Reset question states
+    setQuestions([]);
+    setNewQuestionText("");
+    setSelectedQuestionId(null);
+    setMarkingCriteriaForSelected("");
   };
 
   function AssignmentCard({ assignment }: { assignment: Assignment }) {
@@ -502,10 +570,27 @@ export default function AssignmentListPage() {
   }
 
   return (
-    <div className="assignment-page">
-      <div className="assignment-container">
+    <div className={styles.assignmentPage}>
+      <div className={styles.assignmentContainer}>
         {!showForm && !showExamForm && !showExamEditForm ? (
-          <div className="assignment-list">
+          <div className={styles.assignmentList}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {/* <Link href="/">
+                <h1 style={{ cursor: "pointer", fontSize: "1.5rem", marginBottom: "1rem" }}>Home</h1>
+              </Link> */}
+              {/* Breadcrumb */}
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/">Home</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Teachers</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            </div>
             <Container className="p-8">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                 <button 
@@ -530,7 +615,7 @@ export default function AssignmentListPage() {
                     const { showScrollButtons = false } = scrollStates[subj] || {};
                     return (
                       <div key={subj} className={styles.subjectSection}>
-                        <Heading as="h2" size="5" className={styles.subjectHeading}>{subj}</Heading>
+                        <Heading as="h2" size="5" className="subjectHeading">{subj}</Heading>
                         <div className={styles.cardRowContainer}>
                           {showScrollButtons && (
                             <button 
@@ -538,7 +623,7 @@ export default function AssignmentListPage() {
                               onClick={() => scrollLeft(subj)}
                               aria-label="Scroll left"
                             >
-                              <CaretLeftIcon />
+                          <CaretLeftIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
                             </button>
                           )}
                           <Flex className={styles.cardRow} ref={rowRefs[subj]}>
@@ -552,14 +637,14 @@ export default function AssignmentListPage() {
                               onClick={() => scrollRight(subj)}
                               aria-label="Scroll right"
                             >
-                              <CaretRightIcon />
+                          <CaretRightIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
                             </button>
                           )}
                         </div>
                       </div>
                     );
                   })}
-                  <button onClick={handleAddAssignment} className="add-button">
+                  <button onClick={handleAddAssignment} className={styles.addButton}>
                     Add New Assignment
                   </button>
                 </>
@@ -571,7 +656,7 @@ export default function AssignmentListPage() {
                     const { showScrollButtons = false } = scrollStates[subj] || {};
                     return (
                       <div key={subj} className={styles.subjectSection}>
-                        <Heading as="h2" size="5" className={styles.subjectHeading}>{subj}</Heading>
+                        <Heading as="h2" size="5" className="subjectHeading">{subj}</Heading>
                         <div className={styles.cardRowContainer}>
                           {showScrollButtons && (
                             <button 
@@ -579,7 +664,7 @@ export default function AssignmentListPage() {
                               onClick={() => scrollLeft(subj)}
                               aria-label="Scroll left"
                             >
-                              <CaretLeftIcon />
+                              <CaretLeftIcon  style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }}/>
                             </button>
                           )}
                           <Flex className={styles.cardRow} ref={rowRefs[subj]}>
@@ -593,15 +678,27 @@ export default function AssignmentListPage() {
                               onClick={() => scrollRight(subj)}
                               aria-label="Scroll right"
                             >
-                              <CaretRightIcon />
-                            </button>
+                          <CaretRightIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
+                          </button>
                           )}
                         </div>
                       </div>
                     );
                   })}
                   {/* BUTTON TO ADD NEW EXAM */}
-                  <button onClick={() => setShowExamForm(true)} className="add-button">
+                  <button onClick={() => {
+                    setShowExamForm(true);
+                    // Reset exam states for adding a new one
+                    setExamTitle("");
+                    setExamSubject("");
+                    setExamDate("");
+                    setQuestions([]);
+                    setNewQuestionText("");
+                    setSelectedQuestionId(null);
+                    setMarkingCriteriaForSelected("");
+                    setExamErrorMessage(null);
+                    setExamSuccessMessage(null);
+                  }} className={styles.addButton}>
                     Add New Exam
                   </button>
                 </>
@@ -612,54 +709,59 @@ export default function AssignmentListPage() {
 
         {/* FORM FOR ADDING/EDITING ASSIGNMENT */}
         {showForm && !showExamForm && !showExamEditForm && (
-          <div className="assignment-form">
+          <div className={styles.assignmentForm}>
             <h3>
               {editingAssignmentId ? "Edit Assignment" : "Add New Assignment"}
             </h3>
-            {errorMessage && <p className="error-message">{errorMessage}</p>}
+            {errorMessage && <p className={styles.errorMessage}>{errorMessage}</p>}
             {successMessage && (
-              <p className="success-message">{successMessage}</p>
+              <p className={styles.successMessage}>{successMessage}</p>
             )}
             <form onSubmit={handleSubmitAssignment}>
-              <div className="form-group">
-                <label>Title:</label>
+            <div className={styles.formGroup}>
+            <label className={styles.labels}>Title:</label>
                 <input
                   type="text"
+                  className={styles.input}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
                 />
               </div>
-              <div className="form-group">
-                <label>Learning Outcomes:</label>
+              <div className={styles.formGroup}>
+                <label className={styles.labels}>Learning Outcomes:</label>
                 <textarea
+                  className={styles.textarea}
                   value={learningOutcomes}
                   onChange={(e) => setLearningOutcomes(e.target.value)}
                   required
                   rows={4}
                 />
               </div>
-              <div className="form-group">
-                <label>Marking Criteria:</label>
+              <div className={styles.formGroup}>
+                <label className={styles.labels}>Marking Criteria:</label>
                 <textarea
+                  className={styles.textarea}
                   value={markingCriteria}
                   onChange={(e) => setMarkingCriteria(e.target.value)}
                   required
                   rows={4}
                 />
               </div>
-              <div className="form-group">
-                <label>Subject:</label>
+              <div className={styles.formGroup}>
+                <label className={styles.labels}>Subject:</label>
+                <div className={styles.selectMenuContainer}>
                 <SelectMenu onChange={handleSubjectChange} value={selectedSubject} />
               </div>
-              <div className="form-group">
-                <label>Additional Prompt:</label>
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.labels}>Additional Prompt:</label>
                 {selectedSubject?.value === 'Custom' ? (
                   <MentionsInput
                     value={additionalPrompt}
                     onChange={(event, newValue) => setAdditionalPrompt(newValue)}
                     placeholder="Type '@' to select a prompt..."
-                    className="mentions"
+                    className={styles.mentions}
                     allowSuggestionsAboveCursor={true}
                     style={{ height: '200px' }}
                     singleLine={false}
@@ -670,25 +772,25 @@ export default function AssignmentListPage() {
                       markup="@[$__display__]($__id__)"
                       appendSpaceOnAdd={true}
                       renderSuggestion={(suggestion, search, highlightedDisplay, index, focused) => (
-                        <div className={`suggestion-item ${focused ? 'focused' : ''}`}>
+                        <div className={`${styles.suggestionItem} ${focused ? styles.focused : ''}`}>
                           {highlightedDisplay}
                         </div>
                       )}
                     />
                   </MentionsInput>
                 ) : (
-                  <div className="mentions read-only">
+                  <div className={`${styles.mentions} ${styles.readOnly}`}>
                     {renderMentions(additionalPrompt)}
                   </div>
                 )}
               </div>
-              <button type="submit">
+              <button type="submit" className={styles.submitButton}>
                 {editingAssignmentId ? "Save" : "Add Assignment"}
               </button>
               <button
                 type="button"
                 onClick={resetAssignmentForm}
-                className="cancel-button"
+                className={styles.cancelButton}
               >
                 Cancel
               </button>
@@ -698,105 +800,253 @@ export default function AssignmentListPage() {
 
         {/* FORM FOR ADDING EXAM */}
         {showExamForm && !showForm && !showExamEditForm && (
-          <div className="exam-form">
-            <h3>Add New Exam</h3>
-            {examErrorMessage && <p className="error-message">{examErrorMessage}</p>}
-            {examSuccessMessage && <p className="success-message">{examSuccessMessage}</p>}
+          // Add Exam form with questions UI
+          // Handlers and states defined above are now used here
+          <div className="exam-form p-8 max-w-6xl mx-auto">
+            <h3 className="text-3xl font-bold mb-4">Add New Exam</h3>
+            {examErrorMessage && <p className="error-message text-red-500 mb-2">{examErrorMessage}</p>}
+            {examSuccessMessage && <p className="success-message text-green-500 mb-2">{examSuccessMessage}</p>}
+
             <form onSubmit={handleExamSubmit}>
-              <div className="form-group">
-                <label>Exam Title:</label>
-                <input
-                  type="text"
-                  value={examTitle}
-                  onChange={(e) => setExamTitle(e.target.value)}
-                  required
-                />
+              {/* Exam Details Row */}
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Exam Title</label>
+                  <input 
+                    type="text" 
+                    value={examTitle} 
+                    onChange={(e) => setExamTitle(e.target.value)} 
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="Enter exam title"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input 
+                    type="date" 
+                    value={examDate} 
+                    onChange={(e) => setExamDate(e.target.value)} 
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <input 
+                    type="text" 
+                    value={examSubject} 
+                    onChange={(e) => setExamSubject(e.target.value)} 
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="e.g. Biology"
+                    required
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label>Subject:</label>
-                <input
-                  type="text"
-                  value={examSubject}
-                  onChange={(e) => setExamSubject(e.target.value)}
-                  required
-                />
+
+              {/* Questions Section */}
+              <div className="border rounded-lg p-4 bg-white shadow-sm">
+                <h2 className="text-xl font-semibold mb-4">Questions</h2>
+                <div className="flex space-x-4" style={{height: '400px'}}>
+                  {/* Left Column: Add question and list */}
+                  <div className="w-1/3 flex flex-col">
+                    <button 
+                      type="button"
+                      onClick={handleAddQuestion}
+                      className="mb-2 bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition-colors"
+                    >
+                      Add Question
+                    </button>
+                    <textarea 
+                      value={newQuestionText}
+                      onChange={(e) => setNewQuestionText(e.target.value)}
+                      placeholder="Type a question here..."
+                      className="block w-full mb-2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2"
+                      style={{height: '100px'}}
+                    />
+                    <div className="flex-1 overflow-auto border rounded-md p-2 bg-gray-50">
+                      {questions.length === 0 && (
+                        <p className="text-gray-500">No questions added yet</p>
+                      )}
+                      {questions.map(q => (
+                        <div 
+                          key={q.id} 
+                          onClick={() => handleSelectQuestion(q.id)}
+                          className={`p-2 mb-1 cursor-pointer rounded hover:bg-gray-200 transition-colors ${q.id === selectedQuestionId ? 'bg-gray-200 font-semibold' : 'bg-white'}`}
+                        >
+                          {q.text.length > 30 ? q.text.slice(0,30) + '...' : q.text}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Marking Criteria */}
+                  <div className="w-2/3 flex flex-col">
+                    {selectedQuestionId ? (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Marking Criteria</label>
+                        <textarea 
+                          value={markingCriteriaForSelected}
+                          onChange={(e) => handleMarkingCriteriaChange(e.target.value)}
+                          placeholder="Define how this question should be graded..."
+                          className="block w-full flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2"
+                        />
+                      </>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center">
+                        <p className="text-gray-500">Select a question from the left to add marking criteria</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="form-group">
-                <label>Date (YYYY-MM-DD):</label>
-                <input
-                  type="date"
-                  value={examDate}
-                  onChange={(e) => setExamDate(e.target.value)}
-                  required
-                />
+
+              {/* Save Button */}
+              <div className="mt-8 flex justify-end">
+                <button
+                  type="submit"
+                  className="bg-green-600 text-white py-2 px-6 rounded-md hover:bg-green-700 transition-colors"
+                >
+                  Save Exam
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExamForm(false);
+                    setExamErrorMessage(null);
+                    setExamSuccessMessage(null);
+                    setExamTitle("");
+                    setExamSubject("");
+                    setExamDate("");
+                    setQuestions([]);
+                    setNewQuestionText("");
+                    setSelectedQuestionId(null);
+                    setMarkingCriteriaForSelected("");
+                  }}
+                  className="cancel-button ml-2 py-2 px-4 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
-              <div className="form-group">
-                <label>Questions (one per line, use " | " to separate questionText and markingCriteria):</label>
-                <textarea
-                  value={examQuestions}
-                  onChange={(e) => setExamQuestions(e.target.value)}
-                  rows={6}
-                  placeholder="e.g.\nWhat is 2+2? | Must say 4\nDescribe photosynthesis | Mention chloroplasts"
-                />
-              </div>
-              <button type="submit">Add Exam</button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowExamForm(false);
-                  setExamErrorMessage(null);
-                  setExamSuccessMessage(null);
-                }}
-                className="cancel-button"
-              >
-                Cancel
-              </button>
             </form>
           </div>
         )}
 
         {/* FORM FOR EDITING EXAM */}
         {showExamEditForm && !showForm && !showExamForm && (
-          <div className="exam-form">
-            <h3>Edit Exam</h3>
-            {errorMessage && <p className="error-message">{errorMessage}</p>}
-            {successMessage && <p className="success-message">{successMessage}</p>}
+          <div className="exam-form p-8 max-w-6xl mx-auto">
+            <h3 className="text-3xl font-bold mb-4">Edit Exam</h3>
+            {errorMessage && <p className="error-message text-red-500 mb-2">{errorMessage}</p>}
+            {successMessage && <p className="success-message text-green-500 mb-2">{successMessage}</p>}
+
             <form onSubmit={handleUpdateExam}>
-              <div className="form-group">
-                <label>Exam Title:</label>
-                <input
-                  type="text"
-                  value={examTitle}
-                  onChange={(e) => setExamTitle(e.target.value)}
-                  required
-                />
+              {/* Exam Details Row */}
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Exam Title</label>
+                  <input 
+                    type="text" 
+                    value={examTitle} 
+                    onChange={(e) => setExamTitle(e.target.value)} 
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input 
+                    type="date" 
+                    value={examDate} 
+                    onChange={(e) => setExamDate(e.target.value)} 
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <input 
+                    type="text" 
+                    value={examSubject} 
+                    onChange={(e) => setExamSubject(e.target.value)} 
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label>Subject:</label>
-                <input
-                  type="text"
-                  value={examSubject}
-                  onChange={(e) => setExamSubject(e.target.value)}
-                  required
-                />
+
+              {/* Questions Section for editing */}
+              <div className="border rounded-lg p-4 bg-white shadow-sm">
+                <h2 className="text-xl font-semibold mb-4">Questions</h2>
+                <div className="flex space-x-4" style={{height: '400px'}}>
+                  {/* Left Column - Add question and list */}
+                  <div className="w-1/3 flex flex-col">
+                    <button 
+                      type="button"
+                      onClick={handleAddQuestion}
+                      className="mb-2 bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition-colors"
+                    >
+                      Add Question
+                    </button>
+                    <textarea 
+                      value={newQuestionText}
+                      onChange={(e) => setNewQuestionText(e.target.value)}
+                      placeholder="Type a question here..."
+                      className="block w-full mb-2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2"
+                      style={{height: '100px'}}
+                    />
+                    <div className="flex-1 overflow-auto border rounded-md p-2 bg-gray-50">
+                      {questions.length === 0 && (
+                        <p className="text-gray-500">No questions added yet</p>
+                      )}
+                      {questions.map(q => (
+                        <div 
+                          key={q.id} 
+                          onClick={() => handleSelectQuestion(q.id)}
+                          className={`p-2 mb-1 cursor-pointer rounded hover:bg-gray-200 transition-colors ${q.id === selectedQuestionId ? 'bg-gray-200 font-semibold' : 'bg-white'}`}
+                        >
+                          {q.text.length > 30 ? q.text.slice(0,30) + '...' : q.text}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Column - Marking Criteria */}
+                  <div className="w-2/3 flex flex-col">
+                    {selectedQuestionId ? (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Marking Criteria</label>
+                        <textarea 
+                          value={markingCriteriaForSelected}
+                          onChange={(e) => handleMarkingCriteriaChange(e.target.value)}
+                          placeholder="Define how this question should be graded..."
+                          className="block w-full flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2"
+                        />
+                      </>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center">
+                        <p className="text-gray-500">Select a question from the left to add marking criteria</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="form-group">
-                <label>Date (YYYY-MM-DD):</label>
-                <input
-                  type="date"
-                  value={examDate}
-                  onChange={(e) => setExamDate(e.target.value)}
-                  required
-                />
+
+              {/* Save Changes Button */}
+              <div className="mt-8 flex justify-end">
+                <button
+                  type="submit"
+                  className="bg-green-600 text-white py-2 px-6 rounded-md hover:bg-green-700 transition-colors"
+                >
+                  Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={resetExamForm}
+                  className="cancel-button ml-2 py-2 px-4 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
-              <button type="submit">Save Changes</button>
-              <button
-                type="button"
-                onClick={resetExamForm}
-                className="cancel-button"
-              >
-                Cancel
-              </button>
             </form>
           </div>
         )}

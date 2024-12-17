@@ -5,7 +5,8 @@
   border-radius: 16px; 
   box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1); 
   padding: 20px; 
-  background: #fff; 
+  background: var(--card); 
+  color: var(--card-foreground);
   transition: transform 0.2s, box-shadow 0.2s; 
   cursor: pointer;
   width: 250px; 
@@ -113,6 +114,11 @@
   padding-bottom: 0.5rem;
 }
 
+/* .dark .subjectHeading{
+  color: #fff;
+  border-bottom: 2px solid #333;
+} */
+
 .cardRowContainer {
   position: relative;
   display: flex;
@@ -149,32 +155,183 @@
   border-radius: 50%;
   width: 40px;
   height: 40px;
+  cursor: pointer;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  cursor: pointer;
   z-index: 2;
+  padding: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  color: #333; /* Ensures icon color is visible */
-}
-
-.scrollButtonLeft svg,
-.scrollButtonRight svg {
-  opacity: 1;
-  color: currentColor;
-  width: 20px;
-  height: 20px;
+  transition: all 0.2s ease;
 }
 
 .scrollButtonLeft {
-  left: -20px; /* Adjusted for better positioning */
+  left: -20px;
 }
 
 .scrollButtonRight {
-  right: -20px; /* Adjusted for better positioning */
+  right: -20px;
 }
 
 .scrollButtonLeft:hover,
 .scrollButtonRight:hover {
   background: #f5f5f5;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.addButton, .cancelButton, .submitButton {
+  padding: 10px 20px;
+  border: 1px solid #808080;
+  cursor: pointer;
+  margin-right: 5px;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group textarea {
+  height: 450px;
+}
+
+.Labels {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.form-group {
+  position: relative;
+}
+
+.additional-prompt-page {
+  width: 100%;
+  height: 100px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  resize: none;
+  overflow-y: auto;
+}
+
+.dark .additional-prompt-page {
+  background-color: #57595a;
+  color: white;
+  border-color: #ffffff;
+}
+
+.textarea {
+  width: 100%;
+  height: 100px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: var(--background);
+  box-sizing: border-box;
+  color: var(--foreground);
+  font-size: 14px;
+  resize: none;
+  overflow-y: auto;
+}
+
+.dark .textarea {
+  background-color: #57595a;
+  color: white;
+  border-color: #ffffff;
+}
+
+/* Mentions Input Styles */
+.mentions {
+  width: 100%;
+  font-size: 14px;
+  overflow-y: auto;
+  background-color: var(--input);
+  color: var(--foreground);
+  position: relative;
+}
+
+.mentionsMention {
+  background-color: #e6f3ff;
+  color: #000;
+}
+
+.readOnly {
+  color: #999;
+  overflow-y: auto;
+}
+
+.dark .readOnly {
+  background-color: #57595a;
+  color: white;
+}
+
+.dark .mentionsMention {
+  background-color: #9bb2c9;
+  color: #000;
+}
+
+.suggestionsContainer {
+  position: absolute;
+  z-index: 1000;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  max-height: 150px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.suggestionItem {
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.focused {
+  background-color: #cee4e5;
+}
+
+.dark .mentions {
+  background-color: #57595a;
+  color: white;
+}
+
+.dark .suggestionsContainer {
+  background-color: #57595a;
+  color: white;
+}
+
+.dark .focused {
+  background-color: #808080;
+}
+
+.assignmentPage {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 20px;
+  height: 100vh;
+}
+
+.assignmentContainer {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 1200px;
+  gap: 20px;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  min-height: auto;
 }
