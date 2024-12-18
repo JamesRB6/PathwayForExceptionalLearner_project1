@@ -8,6 +8,7 @@ import { Container, Flex, Heading } from "@radix-ui/themes";
 import { CaretRightIcon, CaretLeftIcon } from "@radix-ui/react-icons";
 import React from "react";
 import { usePathname } from "next/navigation";
+import ExamForm from "@/components/ui/examForm"; // Already imported
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -88,7 +89,6 @@ export default function AssignmentListPage() {
       .catch((err) => console.error("Error fetching assignments", err));
   }, []);
 
-  // When viewing exams, fetch them
   useEffect(() => {
     if (viewMode === 'exams') {
       fetch("/api/exams")
@@ -258,6 +258,8 @@ export default function AssignmentListPage() {
       setMarkingCriteriaForSelected("");
 
       setShowExamEditForm(true);
+
+      
     }
   }
 
@@ -444,12 +446,13 @@ export default function AssignmentListPage() {
   const handleUpdateExam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingExamId) return;
-
+  
     const questionsArray = questions.map(q => ({
+      id: q.id, // include the question ID
       questionText: q.text,
-      markingCriteria: q.markingCriteria || ""
+      markingCriteria: q.markingCriteria || "",
     }));
-
+  
     try {
       const response = await fetch(`/api/exams/${editingExamId}`, {
         method: "PUT",
@@ -461,34 +464,53 @@ export default function AssignmentListPage() {
           questions: questionsArray,
         }),
       });
-
+      
+  
       if (response.ok) {
         const updatedExam = await response.json();
-        setExams(exams.map(e => e.id === editingExamId ? updatedExam : e));
-        setSuccessMessage("Exam updated successfully!");
+  
+        // Update the exams list with the updated exam
+        setExams(
+          exams.map((exam) => (exam.id === editingExamId ? updatedExam : exam))
+        );
+  
+        // Reset the form and state variables
         resetExamForm();
+  
+        // Set a success message if needed
+        setSuccessMessage("Exam updated successfully!");
       } else {
         setErrorMessage("Failed to update exam");
       }
     } catch (error) {
+      console.error(error);
       setErrorMessage("An error occurred while updating the exam");
     }
   };
 
-  const resetExamForm = () => {
-    setEditingExamId(null);
-    setShowExamEditForm(false);
-    setExamTitle("");
-    setExamSubject("");
-    setExamDate("");
-    setExamErrorMessage(null);
-    setExamSuccessMessage(null);
-    // Reset question states
-    setQuestions([]);
-    setNewQuestionText("");
+function resetExamForm() {
+  setEditingExamId(null);
+  setShowExamEditForm(false);
+  setExamTitle("");
+  setExamSubject("");
+  setExamDate("");
+  setExamErrorMessage(null);
+  setExamSuccessMessage(null);
+  // Reset question states
+  setQuestions([]);
+  setNewQuestionText("");
+  setSelectedQuestionId(null);
+  setMarkingCriteriaForSelected("");
+}
+
+function handleDeleteQuestion(id: number) {
+  setQuestions((prevQuestions) => prevQuestions.filter((q) => q.id !== id));
+  // If the deleted question was currently selected, reset selection
+  if (selectedQuestionId === id) {
     setSelectedQuestionId(null);
     setMarkingCriteriaForSelected("");
-  };
+  }
+}
 
   function AssignmentCard({ assignment }: { assignment: Assignment }) {
     return (
@@ -518,7 +540,7 @@ export default function AssignmentListPage() {
             </button>
             <a
               className={styles.assignmentsLink}
-              href={`/admin/assignment/${assignment.id}`}
+              href={`/assignment/${assignment.id}`}
             >
               View Details
             </a>
@@ -538,7 +560,7 @@ export default function AssignmentListPage() {
           <div className={styles.cardContent}>
             <div className={styles.cardTitle}>{exam.title}</div>
             <div className={styles.cardSubtitle}>
-              Exam Date: {new Date(exam.date).toDateString()}
+              Updated {new Date(exam.date).toDateString()}
             </div>
             <div className={styles.cardSubtitle}>
               Questions: {exam.questions?.length || 0}
@@ -575,21 +597,17 @@ export default function AssignmentListPage() {
         {!showForm && !showExamForm && !showExamEditForm ? (
           <div className={styles.assignmentList}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              {/* <Link href="/">
-                <h1 style={{ cursor: "pointer", fontSize: "1.5rem", marginBottom: "1rem" }}>Home</h1>
-              </Link> */}
-              {/* Breadcrumb */}
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/">Home</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Teachers</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink href="/">Home</BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>Teachers</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
             </div>
             <Container className="p-8">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
@@ -623,7 +641,7 @@ export default function AssignmentListPage() {
                               onClick={() => scrollLeft(subj)}
                               aria-label="Scroll left"
                             >
-                          <CaretLeftIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
+                              <CaretLeftIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
                             </button>
                           )}
                           <Flex className={styles.cardRow} ref={rowRefs[subj]}>
@@ -637,7 +655,7 @@ export default function AssignmentListPage() {
                               onClick={() => scrollRight(subj)}
                               aria-label="Scroll right"
                             >
-                          <CaretRightIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
+                              <CaretRightIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
                             </button>
                           )}
                         </div>
@@ -664,7 +682,7 @@ export default function AssignmentListPage() {
                               onClick={() => scrollLeft(subj)}
                               aria-label="Scroll left"
                             >
-                              <CaretLeftIcon  style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }}/>
+                              <CaretLeftIcon  style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1}}/>
                             </button>
                           )}
                           <Flex className={styles.cardRow} ref={rowRefs[subj]}>
@@ -678,8 +696,8 @@ export default function AssignmentListPage() {
                               onClick={() => scrollRight(subj)}
                               aria-label="Scroll right"
                             >
-                          <CaretRightIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
-                          </button>
+                              <CaretRightIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
+                            </button>
                           )}
                         </div>
                       </div>
@@ -718,8 +736,8 @@ export default function AssignmentListPage() {
               <p className={styles.successMessage}>{successMessage}</p>
             )}
             <form onSubmit={handleSubmitAssignment}>
-            <div className={styles.formGroup}>
-            <label className={styles.labels}>Title:</label>
+              <div className={styles.formGroup}>
+                <label className={styles.labels}>Title:</label>
                 <input
                   type="text"
                   className={styles.input}
@@ -751,8 +769,8 @@ export default function AssignmentListPage() {
               <div className={styles.formGroup}>
                 <label className={styles.labels}>Subject:</label>
                 <div className={styles.selectMenuContainer}>
-                <SelectMenu onChange={handleSubjectChange} value={selectedSubject} />
-              </div>
+                  <SelectMenu onChange={handleSubjectChange} value={selectedSubject} />
+                </div>
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.labels}>Additional Prompt:</label>
@@ -798,257 +816,63 @@ export default function AssignmentListPage() {
           </div>
         )}
 
-        {/* FORM FOR ADDING EXAM */}
+        {/* REUSABLE EXAM FORM FOR ADDING EXAM */}
         {showExamForm && !showForm && !showExamEditForm && (
-          // Add Exam form with questions UI
-          // Handlers and states defined above are now used here
-          <div className="exam-form p-8 max-w-6xl mx-auto">
-            <h3 className="text-3xl font-bold mb-4">Add New Exam</h3>
-            {examErrorMessage && <p className="error-message text-red-500 mb-2">{examErrorMessage}</p>}
-            {examSuccessMessage && <p className="success-message text-green-500 mb-2">{examSuccessMessage}</p>}
+  <ExamForm
+    titleHeading="Add New Exam"
+    errorMessage={examErrorMessage}
+    successMessage={examSuccessMessage}
+    examTitle={examTitle}
+    examDate={examDate}
+    examSubject={examSubject}
+    questions={questions}
+    newQuestionText={newQuestionText}
+    selectedQuestionId={selectedQuestionId}
+    markingCriteriaForSelected={markingCriteriaForSelected}
+    onExamTitleChange={setExamTitle}
+    onExamDateChange={setExamDate}
+    onExamSubjectChange={setExamSubject}
+    onAddQuestion={handleAddQuestion}
+    onNewQuestionTextChange={setNewQuestionText}
+    onSelectQuestion={handleSelectQuestion}
+    onMarkingCriteriaChange={handleMarkingCriteriaChange}
+    onDeleteQuestion={handleDeleteQuestion} // pass in delete handler
+    onSubmit={handleExamSubmit}
+    onCancel={() => {
+      setShowExamForm(false);
+      resetExamForm(); // Use resetExamForm instead of resetExamStates
+    }}
+    submitButtonText="Save Exam"
+  />
+)}
 
-            <form onSubmit={handleExamSubmit}>
-              {/* Exam Details Row */}
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Exam Title</label>
-                  <input 
-                    type="text" 
-                    value={examTitle} 
-                    onChange={(e) => setExamTitle(e.target.value)} 
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    placeholder="Enter exam title"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                  <input 
-                    type="date" 
-                    value={examDate} 
-                    onChange={(e) => setExamDate(e.target.value)} 
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-                  <input 
-                    type="text" 
-                    value={examSubject} 
-                    onChange={(e) => setExamSubject(e.target.value)} 
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    placeholder="e.g. Biology"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Questions Section */}
-              <div className="border rounded-lg p-4 bg-white shadow-sm">
-                <h2 className="text-xl font-semibold mb-4">Questions</h2>
-                <div className="flex space-x-4" style={{height: '400px'}}>
-                  {/* Left Column: Add question and list */}
-                  <div className="w-1/3 flex flex-col">
-                    <button 
-                      type="button"
-                      onClick={handleAddQuestion}
-                      className="mb-2 bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition-colors"
-                    >
-                      Add Question
-                    </button>
-                    <textarea 
-                      value={newQuestionText}
-                      onChange={(e) => setNewQuestionText(e.target.value)}
-                      placeholder="Type a question here..."
-                      className="block w-full mb-2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2"
-                      style={{height: '100px'}}
-                    />
-                    <div className="flex-1 overflow-auto border rounded-md p-2 bg-gray-50">
-                      {questions.length === 0 && (
-                        <p className="text-gray-500">No questions added yet</p>
-                      )}
-                      {questions.map(q => (
-                        <div 
-                          key={q.id} 
-                          onClick={() => handleSelectQuestion(q.id)}
-                          className={`p-2 mb-1 cursor-pointer rounded hover:bg-gray-200 transition-colors ${q.id === selectedQuestionId ? 'bg-gray-200 font-semibold' : 'bg-white'}`}
-                        >
-                          {q.text.length > 30 ? q.text.slice(0,30) + '...' : q.text}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Right Column: Marking Criteria */}
-                  <div className="w-2/3 flex flex-col">
-                    {selectedQuestionId ? (
-                      <>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Marking Criteria</label>
-                        <textarea 
-                          value={markingCriteriaForSelected}
-                          onChange={(e) => handleMarkingCriteriaChange(e.target.value)}
-                          placeholder="Define how this question should be graded..."
-                          className="block w-full flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2"
-                        />
-                      </>
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center">
-                        <p className="text-gray-500">Select a question from the left to add marking criteria</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Save Button */}
-              <div className="mt-8 flex justify-end">
-                <button
-                  type="submit"
-                  className="bg-green-600 text-white py-2 px-6 rounded-md hover:bg-green-700 transition-colors"
-                >
-                  Save Exam
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExamForm(false);
-                    setExamErrorMessage(null);
-                    setExamSuccessMessage(null);
-                    setExamTitle("");
-                    setExamSubject("");
-                    setExamDate("");
-                    setQuestions([]);
-                    setNewQuestionText("");
-                    setSelectedQuestionId(null);
-                    setMarkingCriteriaForSelected("");
-                  }}
-                  className="cancel-button ml-2 py-2 px-4 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* FORM FOR EDITING EXAM */}
-        {showExamEditForm && !showForm && !showExamForm && (
-          <div className="exam-form p-8 max-w-6xl mx-auto">
-            <h3 className="text-3xl font-bold mb-4">Edit Exam</h3>
-            {errorMessage && <p className="error-message text-red-500 mb-2">{errorMessage}</p>}
-            {successMessage && <p className="success-message text-green-500 mb-2">{successMessage}</p>}
-
-            <form onSubmit={handleUpdateExam}>
-              {/* Exam Details Row */}
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Exam Title</label>
-                  <input 
-                    type="text" 
-                    value={examTitle} 
-                    onChange={(e) => setExamTitle(e.target.value)} 
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                  <input 
-                    type="date" 
-                    value={examDate} 
-                    onChange={(e) => setExamDate(e.target.value)} 
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-                  <input 
-                    type="text" 
-                    value={examSubject} 
-                    onChange={(e) => setExamSubject(e.target.value)} 
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Questions Section for editing */}
-              <div className="border rounded-lg p-4 bg-white shadow-sm">
-                <h2 className="text-xl font-semibold mb-4">Questions</h2>
-                <div className="flex space-x-4" style={{height: '400px'}}>
-                  {/* Left Column - Add question and list */}
-                  <div className="w-1/3 flex flex-col">
-                    <button 
-                      type="button"
-                      onClick={handleAddQuestion}
-                      className="mb-2 bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition-colors"
-                    >
-                      Add Question
-                    </button>
-                    <textarea 
-                      value={newQuestionText}
-                      onChange={(e) => setNewQuestionText(e.target.value)}
-                      placeholder="Type a question here..."
-                      className="block w-full mb-2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2"
-                      style={{height: '100px'}}
-                    />
-                    <div className="flex-1 overflow-auto border rounded-md p-2 bg-gray-50">
-                      {questions.length === 0 && (
-                        <p className="text-gray-500">No questions added yet</p>
-                      )}
-                      {questions.map(q => (
-                        <div 
-                          key={q.id} 
-                          onClick={() => handleSelectQuestion(q.id)}
-                          className={`p-2 mb-1 cursor-pointer rounded hover:bg-gray-200 transition-colors ${q.id === selectedQuestionId ? 'bg-gray-200 font-semibold' : 'bg-white'}`}
-                        >
-                          {q.text.length > 30 ? q.text.slice(0,30) + '...' : q.text}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Right Column - Marking Criteria */}
-                  <div className="w-2/3 flex flex-col">
-                    {selectedQuestionId ? (
-                      <>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Marking Criteria</label>
-                        <textarea 
-                          value={markingCriteriaForSelected}
-                          onChange={(e) => handleMarkingCriteriaChange(e.target.value)}
-                          placeholder="Define how this question should be graded..."
-                          className="block w-full flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2"
-                        />
-                      </>
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center">
-                        <p className="text-gray-500">Select a question from the left to add marking criteria</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Save Changes Button */}
-              <div className="mt-8 flex justify-end">
-                <button
-                  type="submit"
-                  className="bg-green-600 text-white py-2 px-6 rounded-md hover:bg-green-700 transition-colors"
-                >
-                  Save Changes
-                </button>
-                <button
-                  type="button"
-                  onClick={resetExamForm}
-                  className="cancel-button ml-2 py-2 px-4 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
+{showExamEditForm && !showForm && !showExamForm && (
+  <ExamForm
+    titleHeading="Edit Exam"
+    errorMessage={examErrorMessage}
+    successMessage={examSuccessMessage}
+    examTitle={examTitle}
+    examDate={examDate}
+    examSubject={examSubject}
+    questions={questions}
+    newQuestionText={newQuestionText}
+    selectedQuestionId={selectedQuestionId}
+    markingCriteriaForSelected={markingCriteriaForSelected}
+    onExamTitleChange={setExamTitle}
+    onExamDateChange={setExamDate}
+    onExamSubjectChange={setExamSubject}
+    onAddQuestion={handleAddQuestion}
+    onNewQuestionTextChange={setNewQuestionText}
+    onSelectQuestion={handleSelectQuestion}
+    onMarkingCriteriaChange={handleMarkingCriteriaChange}
+    onDeleteQuestion={handleDeleteQuestion} // pass in delete handler
+    onSubmit={handleUpdateExam}
+    onCancel={() => {
+      setShowExamForm(false);
+      resetExamForm(); // Use resetExamForm instead of resetExamStates
+    }}
+    submitButtonText="Save Changes"
+  />
         )}
       </div>
     </div>
