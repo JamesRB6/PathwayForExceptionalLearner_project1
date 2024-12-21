@@ -447,11 +447,13 @@ export default function AssignmentListPage() {
     e.preventDefault();
     if (!editingExamId) return;
   
-    const questionsArray = questions.map(q => ({
-      id: q.id, // include the question ID
-      questionText: q.text,
-      markingCriteria: q.markingCriteria || "",
-    }));
+const questionsArray = questions.map((q) => ({
+  // Only pass q.id if it’s a real DB id (not a random large number)
+  id: q.id && q.id < 2147483647 ? q.id : undefined,
+  questionText: q.text,
+  markingCriteria: q.markingCriteria || "",
+}));
+
   
     try {
       const response = await fetch(`/api/exams/${editingExamId}`, {
