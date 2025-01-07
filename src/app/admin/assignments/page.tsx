@@ -437,7 +437,7 @@ export default function AssignmentListPage() {
       } else {
         setExamErrorMessage("Failed to add exam");
       }
-    } catch (error) {
+    } catch (error) { 
       console.error(error);
       setExamErrorMessage("An error occurred while adding the exam");
     }
@@ -449,7 +449,7 @@ export default function AssignmentListPage() {
   
 const questionsArray = questions.map((q) => ({
   // Only pass q.id if it’s a real DB id (not a random large number)
-  id: q.id && q.id < 2147483647 ? q.id : undefined,
+  id: undefined,
   questionText: q.text,
   markingCriteria: q.markingCriteria || "",
 }));

@@ -1,10 +1,26 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import Papa from "papaparse";
-import "/src/app/globals.css";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import Papa, { ParseResult } from "papaparse";
 import pLimit from "p-limit";
+
+// Example interface for your single exam
+interface Question {
+  id: number;
+  questionText: string;
+  markingCriteria?: string | null;
+}
+
+interface Exam {
+  id: number;
+  title: string;
+  subject: string;
+  date: string; // or Date if you parse it
+  questions: Question[];
+}
+
+// Student data from CSV parsing
 interface Student {
   studentID: number;
   question: string;
@@ -12,256 +28,287 @@ interface Student {
   feedback?: string;
 }
 
-const UploadCSV = () => {
+const UploadCSV: React.FC = () => {
+  // Read examId from URL: e.g. /admin/UploadCSV?examId=123
+  const searchParams = useSearchParams();
+  const examId = searchParams.get("examId");
+
+  const [exam, setExam] = useState<Exam | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [criteria, setCriteria] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
-  const [criteriaSubmitted, setCriteriaSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const markingCriteriaPanelRef = useRef<any>(null); // Ref for the panel
+  // For multi-student navigation
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Handle file input change
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
+  // 1) Fetch the specific exam given examId
+  useEffect(() => {
+    if (!examId) {
+      console.log("No examId in query params, skipping fetchExam.");
+      return;
+    }
+
+    const fetchExam = async (id: string) => {
+      try {
+        console.log(`Fetching exam with ID: ${id}`);
+        const res = await fetch(`/api/exams/${id}`);
+        if (!res.ok) {
+          throw new Error(`Failed to fetch exam with ID ${id}`);
+        }
+        const data: Exam = await res.json();
+        console.log("Fetched exam data:", data);
+        setExam(data);
+      } catch (error) {
+        console.error("Error fetching exam:", error);
+      }
+    };
+
+    fetchExam(examId);
+  }, [examId]);
+
+  // 2) Handle file selection
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
+    if (event.target.files && event.target.files.length > 0) {
+      console.log("Selected file:", event.target.files[0].name);
       setFile(event.target.files[0]);
     }
   };
 
-  // Handle form submission to upload and process CSV file
-
+  // 3) Concurrency-limited batch processor
   const processBatchWithLimit = async (
-    batch: any[][], // Array of rows, each row being an array of values
-    limit: (fn: () => Promise<any>) => Promise<any> // Limit function from p-limit
+    batch: string[][],
+    limit: (fn: () => Promise<Student[]>) => Promise<Student[]>
   ): Promise<Student[]> => {
-    // Use limit to ensure the entire batch is processed in one API call
+    console.log("Scheduling batch for processing:", batch);
+
     return limit(async () => {
       try {
-        console.log("Sending to API:", { batch }); // Debug log
-        
+        console.log("Processing batch:", batch);
         const apiResponse = await fetch("/api/CSV", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            batch,
-            criteria, // Assuming criteria is defined in the outer scope
-          }),
+          body: JSON.stringify({ batch }),
         });
-  
-        if (apiResponse.ok) {
-          const res = await apiResponse.json();
-          console.log("API Response:", res.message); // Debug log
-  
-          // Map response to an array of Student objects
-          return batch.map((row, index) => {
-            const [studentID, question, response] = row;
-            return {
-              studentID: parseInt(studentID), // Ensure correct type
-              question,
-              response,
-              feedback: res.message.split("\n\n")[index], // Split by double newline
-            };
-          });
-        } else {
-          console.error(`Error processing batch`);
+
+        if (!apiResponse.ok) {
+          console.error("Error from /api/CSV. Response status:", apiResponse.status);
           return [];
         }
+
+        const res = await apiResponse.json();
+        console.log("API response received for this batch:", res);
+
+        // Suppose res.message is a string with linebreaks
+        return batch.map((row, index) => {
+          const [studentID, question, response] = row;
+          return {
+            studentID: parseInt(studentID),
+            question,
+            response,
+            feedback: res.message.split("\n\n")[index],
+          };
+        });
       } catch (error) {
-        console.error(`Error processing batch`, error);
+        console.error("Error processing batch:", error);
         return [];
       }
     });
   };
-  
 
-  const handleSubmit = async () => {
-  if (file) {
+  // 4) Handle CSV parse & process
+  const handleProcessCSV = async (): Promise<void> => {
+    if (!file) {
+      console.log("No file selected, cannot process CSV.");
+      return;
+    }
+    console.log("Starting CSV processing...");
+
+    setLoading(true);
     const reader = new FileReader();
-    reader.readAsText(file);
-    reader.onload = async (e) => {
-      const text = e.target?.result as string;
 
-      Papa.parse(text, {
+    reader.readAsText(file);
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      console.log("File read complete, parsing with Papa Parse...");
+
+      Papa.parse<string[]>(text, {
         header: false,
         skipEmptyLines: true,
-        complete: async (results) => {
-          const parsedData: any[][] = results.data.slice(1) as any[][]; // Skip header
-          const batchSize = 10; // Number of rows per batch
-          const limit = pLimit(5); // Limit 5 concurrent requests
+        complete: async (results: ParseResult<string[]>) => {
+          console.log("Papa Parse complete. Raw results:", results.data);
 
-          const batches: any[][][] = [];
+          // Skip header row (assuming first row is header)
+          const allRows = results.data.slice(1);
+          console.log("Rows after skipping header:", allRows);
+
+          const parsedData = allRows as string[][];
+
+          // Batch & concurrency
+          const batchSize = 10;
+          const limit = pLimit(5);
+          console.log(`Creating batches of size: ${batchSize}. Concurrency limit: 5`);
+
+          const batches: string[][][] = [];
           for (let i = 0; i < parsedData.length; i += batchSize) {
-            batches.push(parsedData.slice(i, i + batchSize));
+            const chunk = parsedData.slice(i, i + batchSize);
+            console.log(`Batch #${batches.length + 1} with rows:`, chunk);
+            batches.push(chunk);
           }
 
-          // Process all batches concurrently with the defined limit
+          console.log(`Total batches created: ${batches.length}`);
+
           const allResults = (
             await Promise.all(
-              batches.map((batch) =>
-                processBatchWithLimit(batch, limit) // Process each batch with limit
-              )
+              batches.map((batch) => processBatchWithLimit(batch, limit))
             )
-          ).flat(); // Flatten the results into a single array
+          ).flat();
 
-          setStudents(allResults); // Set students in state
-          setCriteriaSubmitted(true);
+          console.log("All batch processing complete. Combined results:", allResults);
+
+          setStudents(allResults);
+          setCurrentIndex(0);
           setLoading(false);
         },
       });
     };
-  }
-};
-
-  // Collapse the Marking Criteria panel when criteria is submitted
-  useEffect(() => {
-    if (criteriaSubmitted && markingCriteriaPanelRef.current) {
-      markingCriteriaPanelRef.current.collapse();
-    }
-  }, [criteriaSubmitted]);
-
-  // Group students by their studentID for easy rendering
-  const groupedStudents = students.reduce((acc, student) => {
-    // If the studentID does not exist in the accumulator, create an empty array for it
-    if (!acc[student.studentID]) {
-      acc[student.studentID] = [];
-    }
-    // Add the student to the corresponding studentID group
-    acc[student.studentID].push(student);
-    return acc;
-  }, {} as { [key: number]: Student[] });
-
-  // Render feedback for each student
-  const renderStudentFeedback = () => {
-    return Object.entries(groupedStudents).map(
-      ([studentID, studentRecords]) => (
-        <div key={studentID} className="mb-4">
-          <h3 className="text-lg font-semibold">Student ID: {studentID}</h3>
-          {studentRecords.map((student, index) => (
-            <div key={index} className="ml-4 mb-2">
-              <p>
-                <strong>Feedback for Question {index + 1}:</strong>{" "}
-                {student.feedback}
-              </p>
-            </div>
-          ))}
-        </div>
-      )
-    );
   };
 
+  // 5) Group students by ID for navigation
+  const groupedStudents = students.reduce<Record<number, Student[]>>(
+    (acc, student) => {
+      if (!acc[student.studentID]) {
+        acc[student.studentID] = [];
+      }
+      acc[student.studentID].push(student);
+      return acc;
+    },
+    {}
+  );
+
+  const studentIDs = Object.keys(groupedStudents).map(Number);
+
+  // 6) Basic next/prev navigation
+  const nextStudent = () => {
+    setCurrentIndex((prev) => {
+      if (studentIDs.length === 0) return 0;
+      const nextIdx = (prev + 1) % studentIDs.length;
+      console.log(`Navigating to student index: ${nextIdx}`);
+      return nextIdx;
+    });
+  };
+
+  const prevStudent = () => {
+    setCurrentIndex((prev) => {
+      if (studentIDs.length === 0) return 0;
+      const nextIdx = prev - 1 < 0 ? studentIDs.length - 1 : prev - 1;
+      console.log(`Navigating to student index: ${nextIdx}`);
+      return nextIdx;
+    });
+  };
+
+  const currentStudentID =
+    studentIDs.length > 0 ? studentIDs[currentIndex] : undefined;
+  const currentStudentData = currentStudentID
+    ? groupedStudents[currentStudentID]
+    : [];
+
+  console.log("Currently showing studentID:", currentStudentID);
+
   return (
-    <div className=" mx-auto h-full w-full ">
-      <PanelGroup direction="horizontal">
-        <Panel defaultSize={50}>
-          <PanelGroup direction="vertical">
-            {/* Questions Section - Top Left */}
-            <Panel defaultSize={25}>
-              <div className="border p-4 shadow-md rounded-md flex flex-col h-full">
-                <h2 className="text-xl font-semibold mb-4">Questions</h2>
-                <div className="flex-1 overflow-auto">
-                  {students.length > 0 ? (
-                    // Extract unique questions and render them
-                    Array.from(
-                      new Set(students.map((student) => student.question))
-                    ).map((question, index) => (
-                      <div key={index} className="mb-4">
-                        <p>
-                          <strong>Question {index + 1}:</strong> {question}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p>No questions available. Please upload a CSV file.</p>
-                  )}
+    <div className="mx-auto max-w-4xl p-4 space-y-4">
+      {/* Collapsible exam info */}
+      <details open className="border border-gray-300 rounded">
+        <summary className="cursor-pointer bg-gray-100 p-2 font-semibold">
+          {exam
+            ? `Exam Information for "${exam.title}"`
+            : "Exam Information (No exam data yet)"}
+        </summary>
+
+        {exam && (
+          <div className="p-4 bg-white flex flex-col gap-4">
+            <div className="text-gray-700">
+              <strong>Subject:</strong> {exam.subject} <br />
+              <strong>Date:</strong> {exam.date}
+            </div>
+
+            {/* Show questions & marking criteria side by side */}
+            {exam.questions.map((q) => (
+              <div
+                key={q.id}
+                className="flex flex-wrap border-b last:border-0 py-2"
+              >
+                <div className="w-full md:w-1/2 pr-4 mb-2 md:mb-0">
+                  <strong>Question:</strong> {q.questionText}
+                </div>
+                <div className="w-full md:w-1/2">
+                  <strong>Marking Criteria:</strong>{" "}
+                  {q.markingCriteria || "N/A"}
                 </div>
               </div>
-            </Panel>
-            <PanelResizeHandle className="h-2 bg-gray-200 cursor-row-resize" />
-            {/* Student Answers Section - Bottom Left */}
-            <Panel defaultSize={50}>
-              <div className="border p-4 shadow-md rounded-md flex flex-col h-full">
-                <h2 className="text-xl font-semibold mb-4">Student Answers</h2>
-                <div className="flex-1 overflow-auto">
-                  {Object.entries(groupedStudents).map(
-                    ([studentID, studentRecords]) => (
-                      <div key={studentID} className="mb-4">
-                        <h3 className="text-lg font-semibold">
-                          Student ID: {studentID}
-                        </h3>
-                        {studentRecords.map((student, index) => (
-                          <div key={index} className="ml-4 mb-2">
-                            <p>
-                              <strong>Answer {index + 1}:</strong>{" "}
-                              {student.response}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-            </Panel>
-          </PanelGroup>
-        </Panel>
-        <PanelResizeHandle className="w-2 bg-gray-200 cursor-col-resize" />
-        <Panel defaultSize={50}>
-          <PanelGroup direction="vertical">
-            {/* Marking Criteria Section - Top Right */}
-            <Panel
-              defaultSize={50}
-              order={1}
-              minSize={10}
-              collapsible
-              ref={markingCriteriaPanelRef}
-            >
-              <div className="border p-4 shadow-md rounded-md flex flex-col h-full">
-                <h2 className="text-xl font-semibold mb-4 ">
-                  Marking Criteria
-                </h2>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileChange}
-                  className="file-input mb-4 shadow-md"
-                />
-                <textarea
-                  name="Marking Criteria"
-                  placeholder="Enter Criteria"
-                  value={criteria}
-                  onChange={(e) => setCriteria(e.target.value)}
-                  className="textarea textarea-bordered w-full h-40 mb-4 flex-1"
-                />
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  className="btn btn-success mt-2 self-start"
-                  disabled={loading}
-                >
-                  {loading ? "Submitting..." : "Submit"}
-                </button>
-              </div>
-            </Panel>
-            <PanelResizeHandle className="h-2 bg-gray-200 cursor-row-resize" />
-            {/* Feedback Section - Bottom Right */}
-            <Panel collapsible order={2} defaultSize={50}>
-              <div className="border p-4 shadow-md rounded-md flex flex-col h-full">
-                <h2 className="text-xl font-semibold mb-4">Feedback</h2>
-                <div className="flex-1 overflow-auto">
-                  {students.length > 0 ? (
-                    renderStudentFeedback()
-                  ) : (
-                    <p>
-                      No feedback available. Please upload and submit a CSV
-                      file.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </Panel>
-          </PanelGroup>
-        </Panel>
-      </PanelGroup>
+            ))}
+          </div>
+        )}
+      </details>
+
+      {/* Buttons to load & process CSV */}
+      <div className="space-x-2">
+        <input
+          type="file"
+          accept=".csv"
+          onChange={handleFileChange}
+          className="inline-block"
+        />
+        <button
+          type="button"
+          onClick={handleProcessCSV}
+          disabled={loading}
+          className="btn btn-primary"
+        >
+          {loading ? "Processing..." : "Process CSV"}
+        </button>
+      </div>
+
+      {/* Nav for multiple students */}
+      {studentIDs.length > 1 && (
+        <div className="flex items-center gap-4">
+          <button onClick={prevStudent} className="btn btn-sm">
+            &larr; Prev
+          </button>
+          <span>
+            Showing Student {currentIndex + 1} of {studentIDs.length}
+          </span>
+          <button onClick={nextStudent} className="btn btn-sm">
+            Next &rarr;
+          </button>
+        </div>
+      )}
+
+      {/* Results table for the current student */}
+      {currentStudentData.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse border text-left">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border p-2">Answer</th>
+                <th className="border p-2">GPT Assessment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentStudentData.map((entry, idx) => (
+                <tr key={idx}>
+                  <td className="border p-2">{entry.response}</td>
+                  <td className="border p-2">{entry.feedback}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* If no students yet, we can show a placeholder */}
+      {studentIDs.length === 0 && (
+        <p className="text-gray-500">No students to display.</p>
+      )}
     </div>
   );
 };
