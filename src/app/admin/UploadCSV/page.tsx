@@ -67,7 +67,9 @@ const UploadCSV: React.FC = () => {
   }, [examId]);
 
   // 2) Handle file selection
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
+  const handleFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ): void => {
     if (event.target.files && event.target.files.length > 0) {
       console.log("Selected file:", event.target.files[0].name);
       setFile(event.target.files[0]);
@@ -83,15 +85,28 @@ const UploadCSV: React.FC = () => {
 
     return limit(async () => {
       try {
-        console.log("Processing batch:", batch);
+        
+
+        if (!exam) {
+          console.error("Exam data is not available.");
+          return [];
+        }
+
+        const combinedCriteria = exam.questions
+          .map((q) => q.markingCriteria || "N/A")
+          .join("\n---\n");
+        console.log("Processing batch:", batch, "with criteria:", combinedCriteria);
         const apiResponse = await fetch("/api/CSV", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ batch }),
+          body: JSON.stringify({ batch, combinedCriteria }),
         });
 
         if (!apiResponse.ok) {
-          console.error("Error from /api/CSV. Response status:", apiResponse.status);
+          console.error(
+            "Error from /api/CSV. Response status:",
+            apiResponse.status
+          );
           return [];
         }
 
@@ -146,7 +161,9 @@ const UploadCSV: React.FC = () => {
           // Batch & concurrency
           const batchSize = 10;
           const limit = pLimit(5);
-          console.log(`Creating batches of size: ${batchSize}. Concurrency limit: 5`);
+          console.log(
+            `Creating batches of size: ${batchSize}. Concurrency limit: 5`
+          );
 
           const batches: string[][][] = [];
           for (let i = 0; i < parsedData.length; i += batchSize) {
@@ -163,7 +180,10 @@ const UploadCSV: React.FC = () => {
             )
           ).flat();
 
-          console.log("All batch processing complete. Combined results:", allResults);
+          console.log(
+            "All batch processing complete. Combined results:",
+            allResults
+          );
 
           setStudents(allResults);
           setCurrentIndex(0);
@@ -215,9 +235,9 @@ const UploadCSV: React.FC = () => {
   console.log("Currently showing studentID:", currentStudentID);
 
   return (
-    <div className="mx-auto max-w-4xl p-4 space-y-4">
+    <div className="mx-50 p-4 space-y-4">
       {/* Collapsible exam info */}
-      <details open className="border border-gray-300 rounded">
+      <details open className="border border-gray-300 rounded w-100">
         <summary className="cursor-pointer bg-gray-100 p-2 font-semibold">
           {exam
             ? `Exam Information for "${exam.title}"`
@@ -225,13 +245,13 @@ const UploadCSV: React.FC = () => {
         </summary>
 
         {exam && (
-          <div className="p-4 bg-white flex flex-col gap-4">
+          // Fixed height, scroll if content is too large
+          <div className="p-4 bg-white flex flex-col gap-4 max-h-80 overflow-y-auto">
             <div className="text-gray-700">
               <strong>Subject:</strong> {exam.subject} <br />
               <strong>Date:</strong> {exam.date}
             </div>
 
-            {/* Show questions & marking criteria side by side */}
             {exam.questions.map((q) => (
               <div
                 key={q.id}

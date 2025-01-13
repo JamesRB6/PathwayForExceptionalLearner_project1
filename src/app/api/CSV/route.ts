@@ -1,29 +1,39 @@
-import { NextResponse, NextRequest } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
-    
   try {
     const { Criteria, question, answer, batch } = await request.json();
-    console.log(Criteria, question, answer);
-    const prompt = `
-    Question and Students response ( For each /n give feedback, ignore studentID): ${batch} 
+    
+    // Decide whether we have any real criteria or not.
+    const hasCriteria = Criteria && Criteria.trim().length > 0;
+    
+    // Build a custom prompt based on whether there is criteria
+    const prompt = hasCriteria
+      ? `
+Question and Students response (For each /n give feedback, ignore studentID): ${batch}
 
-    Marking Criteria:
-    ---
-    ${Criteria}
-    ---
-    `;
+Marking Criteria:
+---
+${Criteria}
+---
+`
+      : `
+Question and Students response (For each /n give feedback, ignore studentID): ${batch}
+
+(No marking criteria was provided. Mark as normal.)
+`;
 
     const messages = [
       {
         role: "system",
         content: `
-You are a tutor at university marking papers, you must provide concise and insightful feedback with a mark out of 0-5. You must provide the reason on why you gave that mark, this is all to help the teacher give the student the best feedback possible.
+You are a university tutor marking exam responses. You must provide concise and insightful feedback with a mark out of 0–5. 
 
 Instructions:
-- Read the student's response to the question.
-- Provide feedback based on the marking criteria provided.
-- Give a mark out of 5 based on the student's response.(eg full marks if correct, 0 if completely wrong)
+1. Read the student's response to the question(s).
+2. If marking criteria is provided, you must refer to it explicitly and indicate how the student's response meets or falls short of those criteria.
+3. If no marking criteria is provided, simply provide normal feedback and a mark out of 5.
+4. Provide a single blank line between feedback for each answer.
 
 Example: 
 2/5 - The explanation of symmetric encryption is mostly correct, but the claim that it is not secure for communication is misleading. Asymmetric encryption is not inherently more secure in all contexts, and the response lacks depth in explaining the implications of each type.
@@ -41,8 +51,7 @@ Note: Your response should only have a single new line between each feedback.
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini", //use 4o for demonstration only
-        //model: 'gemini-1.5-flash',
+        model: "gpt-4o-mini", // Example only
         messages: messages,
         temperature: 0,
       }),
