@@ -290,14 +290,14 @@ const UploadCSV: React.FC = () => {
 
       {/* Nav for multiple students */}
       {studentIDs.length > 1 && (
-        <div className="flex items-center gap-4">
-          <button onClick={prevStudent} className="btn btn-sm">
+        <div className="flex items-center gap-4 " >
+          <button onClick={prevStudent} className="btn btn-sm font-bold ">
             &larr; Prev
           </button>
-          <span>
-            Showing Student {currentIndex + 1} of {studentIDs.length}
+          <span className="font-bold text-lg">
+            Showing Student {currentStudentID} 
           </span>
-          <button onClick={nextStudent} className="btn btn-sm">
+          <button onClick={nextStudent} className="btn btn-sm font-bold">
             Next &rarr;
           </button>
         </div>
