@@ -22,7 +22,7 @@ interface Exam {
 
 // Student data from CSV parsing
 interface Student {
-  studentID: number;
+  studentID: string;
   question: string;
   response: string;
   feedback?: string;
@@ -117,7 +117,7 @@ const UploadCSV: React.FC = () => {
         return batch.map((row, index) => {
           const [studentID, question, response] = row;
           return {
-            studentID: parseInt(studentID),
+            studentID: studentID,
             question,
             response,
             feedback: res.message.split("\n\n")[index],
@@ -159,7 +159,7 @@ const UploadCSV: React.FC = () => {
           const parsedData = allRows as string[][];
 
           // Batch & concurrency
-          const batchSize = 10;
+          const batchSize = 5;
           const limit = pLimit(5);
           console.log(
             `Creating batches of size: ${batchSize}. Concurrency limit: 5`
@@ -194,7 +194,7 @@ const UploadCSV: React.FC = () => {
   };
 
   // 5) Group students by ID for navigation
-  const groupedStudents = students.reduce<Record<number, Student[]>>(
+  const groupedStudents = students.reduce<Record<string, Student[]>>(
     (acc, student) => {
       if (!acc[student.studentID]) {
         acc[student.studentID] = [];
@@ -204,8 +204,9 @@ const UploadCSV: React.FC = () => {
     },
     {}
   );
+  
 
-  const studentIDs = Object.keys(groupedStudents).map(Number);
+  const studentIDs = Object.keys(groupedStudents);
 
   // 6) Basic next/prev navigation
   const nextStudent = () => {
@@ -295,7 +296,7 @@ const UploadCSV: React.FC = () => {
             &larr; Prev
           </button>
           <span>
-            Showing Student {currentIndex + 1} of {studentIDs.length}
+            Showing Student {currentStudentID}
           </span>
           <button onClick={nextStudent} className="btn btn-sm">
             Next &rarr;
