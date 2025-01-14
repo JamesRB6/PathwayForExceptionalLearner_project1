@@ -22,7 +22,7 @@ interface Exam {
 
 // Student data from CSV parsing
 interface Student {
-  studentID: number;
+  studentID: string;
   question: string;
   response: string;
   feedback?: string;
@@ -117,7 +117,7 @@ const UploadCSV: React.FC = () => {
         return batch.map((row, index) => {
           const [studentID, question, response] = row;
           return {
-            studentID: parseInt(studentID),
+            studentID: studentID,
             question,
             response,
             feedback: res.message.split("\n\n")[index],
@@ -194,7 +194,7 @@ const UploadCSV: React.FC = () => {
   };
 
   // 5) Group students by ID for navigation
-  const groupedStudents = students.reduce<Record<number, Student[]>>(
+  const groupedStudents = students.reduce<Record<string, Student[]>>(
     (acc, student) => {
       if (!acc[student.studentID]) {
         acc[student.studentID] = [];
@@ -204,8 +204,9 @@ const UploadCSV: React.FC = () => {
     },
     {}
   );
+  
 
-  const studentIDs = Object.keys(groupedStudents).map(Number);
+  const studentIDs = Object.keys(groupedStudents);
 
   // 6) Basic next/prev navigation
   const nextStudent = () => {
