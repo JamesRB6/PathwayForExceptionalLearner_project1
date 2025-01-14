@@ -2,19 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { Criteria, question, answer, batch } = await request.json();
+    const { questionsAndCriteria, question, answer, batch } = await request.json();
     
     // Decide whether we have any real criteria or not.
-    const hasCriteria = Criteria && Criteria.trim().length > 0;
+    const hasCriteria = questionsAndCriteria && questionsAndCriteria.trim().length > 0;
     
     // Build a custom prompt based on whether there is criteria
     const prompt = hasCriteria
       ? `
 Question and Students response (For each /n give feedback, ignore studentID): ${batch}
 
-Marking Criteria:
+Question followed by Marking Criteria:
 ---
-${Criteria}
+${questionsAndCriteria}
 ---
 `
       : `

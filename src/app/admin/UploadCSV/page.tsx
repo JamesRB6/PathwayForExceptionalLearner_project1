@@ -91,15 +91,15 @@ const UploadCSV: React.FC = () => {
           console.error("Exam data is not available.");
           return [];
         }
-
-        const combinedCriteria = exam.questions
-          .map((q) => q.markingCriteria || "N/A")
-          .join("\n---\n");
-        console.log("Processing batch:", batch, "with criteria:", combinedCriteria);
+        // Send batch to API for processing
+          const questionsAndCriteria = exam.questions
+            .map((q) => `Question: ${q.questionText}\nMarking Criteria: ${q.markingCriteria || "N/A"}`)
+            .join("\n---\n");
+        console.log("Processing batch:", batch, "with criteria:", questionsAndCriteria);
         const apiResponse = await fetch("/api/CSV", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ batch, combinedCriteria }),
+          body: JSON.stringify({ batch, questionsAndCriteria }),
         });
 
         if (!apiResponse.ok) {
