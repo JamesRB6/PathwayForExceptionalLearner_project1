@@ -159,7 +159,7 @@ const UploadCSV: React.FC = () => {
           const parsedData = allRows as string[][];
 
           // Batch & concurrency
-          const batchSize = 5;
+          const batchSize = 3;
           const limit = pLimit(5);
           console.log(
             `Creating batches of size: ${batchSize}. Concurrency limit: 5`
