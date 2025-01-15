@@ -7,7 +7,6 @@
   padding: 20px; 
   background: var(--card); 
   color: var(--card-foreground);
-  transition: transform 0.2s, box-shadow 0.2s; 
   cursor: pointer;
   width: 250px; 
   height: 300px; 
@@ -22,16 +21,20 @@
 }
 
 .customAvatar {
-  width: 80px; 
-  height: 80px;
+  width: 70px; /* Increased size */
+  height: 70px;
   border-radius: 50%; 
   background-color: #e0f7fa; 
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36px; 
+  font-size: 28px; /* Increased font size */
   color: #00796b; 
-  margin-bottom: 16px; 
+  margin: 0 auto; /* Center horizontally */
+  margin-top: 10px; /* Add space from top */
+  margin-bottom: 20px; 
+  position: relative; /* Added for absolute positioning if needed */
+  transform: none; /* Remove vertical centering */
 }
 
 .cardContent {
@@ -42,16 +45,14 @@
 }
 
 .cardTitle {
-  font-size: 18px;
-  font-weight: bold;
+  font-weight: var(--font-weight-bold);
   margin-bottom: 8px;
-  color: #333; 
 }
 
 .cardSubtitle {
-  font-size: 14px;
-  color: #666; 
-  margin-bottom: 16px; 
+  font-size: var(--font-size-2);
+    --line-height: var(--line-height-2);
+    --letter-spacing: var(--letter-spacing-2);
 }
 
 .cardActions {
@@ -75,17 +76,6 @@
 .editButton:hover,
 .deleteButton:hover {
   background-color: #e0e0e0; 
-}
-
-.assignmentsLink {
-  font-size: 14px;
-  color: #0070f3; 
-  text-decoration: none;
-  font-weight: bold;
-}
-
-.assignmentsLink:hover {
-  text-decoration: underline;
 }
 
 .subjectGroup {
@@ -114,11 +104,6 @@
   padding-bottom: 0.5rem;
 }
 
-/* .dark .subjectHeading{
-  color: #fff;
-  border-bottom: 2px solid #333;
-} */
-
 .cardRowContainer {
   position: relative;
   display: flex;
@@ -129,55 +114,23 @@
 
 .cardRow {
   display: flex;
-  flex-direction: row !important;
-  flex-wrap: nowrap; 
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.cardContainer {
+  display: flex;
+  flex-wrap: wrap;
   gap: 1.5rem;
   margin-bottom: 1.5rem;
-  overflow-x: hidden; 
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
-  width: 100%;
 }
 
 .assignmentCard {
   flex: 0 0 auto; 
 }
 
-/* Scroll Buttons */
-.scrollButtonLeft,
-.scrollButtonRight {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  cursor: pointer;
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-  padding: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  transition: all 0.2s ease;
-}
 
-.scrollButtonLeft {
-  left: -20px;
-}
-
-.scrollButtonRight {
-  right: -20px;
-}
-
-.scrollButtonLeft:hover,
-.scrollButtonRight:hover {
-  background: #f5f5f5;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}
 
 .addButton, .cancelButton, .submitButton {
   padding: 10px 20px;
@@ -244,7 +197,7 @@
   color: var(--foreground);
   font-size: 14px;
   resize: none;
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 
 .dark .textarea {
@@ -326,12 +279,147 @@
 }
 
 .assignmentContainer {
-  display: flex;
-  justify-content: space-between;
   width: 100%;
   max-width: 1200px;
   gap: 20px;
   box-sizing: border-box;
   flex-wrap: wrap;
   min-height: auto;
+}
+
+.listContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.listAssignmentCard {
+  width: 100%;
+  cursor: pointer;
+  border-radius: 16px; 
+  background: var(--card); 
+  color: var(--card-foreground);
+  transition: transform 0.2s, box-shadow 0.2s; 
+  cursor: pointer;
+  margin: 5px;
+}
+
+.listAssignmentCard:hover {
+  transform: scale(1.02);
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.listCardContent {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.listAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: #e0f7fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: #00796b;
+  margin-right: 16px;
+}
+
+.listDetails {
+  flex: 1;
+}
+
+.listActions {
+  display: flex;
+  gap: 8px;
+}
+
+.assignmentsLink {
+  font-size: 14px;
+  color: var(--card); 
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.assignmentsLink:hover {
+  text-decoration: underline;
+}
+
+.listAssignmentCard {
+  width: 100%;
+}
+
+.viewToggleButton {
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 40px; 
+}
+
+/* For the list view specifically */
+.listAssignmentCard .customAvatar {
+  width: 40px; /* Keep original size for list view */
+  height: 40px;
+  margin: 0; /* Remove margin for list view */
+  font-size: 20px;
+  transform: none; /* Remove transform for list view */
+}
+
+/* page.module.css */
+
+/* page.module.css */
+
+/* This will be the blurred overlay that covers the entire screen */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(4px); /* You can adjust the blur strength */
+  background-color: rgba(0, 0, 0, 0.3); /* Slightly dark overlay */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.modalContainer {
+  background: var(--white);
+  color: var(--black);
+  padding: 2rem;
+  border-radius: 8px;
+  width: 500px;
+  max-width: 90%;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.dark .overlay {
+  backdrop-filter: blur(4px);
+  background-color: rgba(31, 31, 31, 0.5);
+}
+
+.dark .modalContainer {
+  background: #2e2e2e; /* or your dark background color */
+  color: #fff;
+}
+
+.closeModalButton {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: inherit;
+  cursor: pointer;
 }

@@ -1,12 +1,24 @@
 "use client";
+
 import styles from "./page.module.css";
-import { useState, useEffect, useMemo } from "react";
-import SelectMenu from '@/components/select-menu/selectmenu';
-import { SubjectOptions, Biology, History, SubjectOption } from '@/components/select-menu/data';
-import { MentionsInput, Mention, SuggestionDataItem } from 'react-mentions';
-import { Container, Flex, Heading } from "@radix-ui/themes";
-import { CaretRightIcon, CaretLeftIcon } from "@radix-ui/react-icons";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import SelectMenu from "@/components/select-menu/selectmenu";
+import {
+  SubjectOptions,
+  Biology,
+  History,
+  SubjectOption,
+} from "@/components/select-menu/data";
+import { MentionsInput, Mention, SuggestionDataItem } from "react-mentions";
+import { Container, Flex, Heading, Box, Card, Text } from "@radix-ui/themes";
+import {
+  CaretRightIcon,
+  ListBulletIcon,
+  GridIcon,
+  CaretLeftIcon,
+} from "@radix-ui/react-icons";
 import React from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ExamForm from "@/components/ui/examForm"; // Already imported
 import {
@@ -30,7 +42,7 @@ interface Exam {
   subject: string;
   date: string;
   updatedAt: string;
-  questions: {id: number; questionText: string; markingCriteria?: string;}[];
+  questions: { id: number; questionText: string; markingCriteria?: string }[];
 }
 
 interface Assignment {
@@ -45,8 +57,10 @@ interface Assignment {
 }
 
 export default function AssignmentListPage() {
-  const [viewMode, setViewMode] = useState<'assignments' | 'exams'>('assignments');
-  
+  const [viewMode, setViewMode] = useState<"assignments" | "exams">(
+    "assignments"
+  );
+
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
 
@@ -56,13 +70,17 @@ export default function AssignmentListPage() {
 
   // State for adding/editing assignments
   const [showForm, setShowForm] = useState(false);
-  const [editingAssignmentId, setEditingAssignmentId] = useState<number | null>(null);
+  const [editingAssignmentId, setEditingAssignmentId] = useState<number | null>(
+    null
+  );
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [learningOutcomes, setLearningOutcomes] = useState("");
   const [markingCriteria, setMarkingCriteria] = useState("");
   const [additionalPrompt, setAdditionalPrompt] = useState("");
-  const [selectedSubject, setSelectedSubject] = useState<SubjectOption | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<SubjectOption | null>(
+    null
+  );
 
   // State for adding/editing exams
   const [showExamForm, setShowExamForm] = useState(false);
@@ -71,17 +89,31 @@ export default function AssignmentListPage() {
   const [examSubject, setExamSubject] = useState("");
   const [examDate, setExamDate] = useState("");
   const [examErrorMessage, setExamErrorMessage] = useState<string | null>(null);
-  const [examSuccessMessage, setExamSuccessMessage] = useState<string | null>(null);
+  const [examSuccessMessage, setExamSuccessMessage] = useState<string | null>(
+    null
+  );
   const [showExamEditForm, setShowExamEditForm] = useState(false);
 
   // New states for questions UI
   const [questions, setQuestions] = useState<Question[]>([]);
   const [newQuestionText, setNewQuestionText] = useState("");
-  const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null);
-  const [markingCriteriaForSelected, setMarkingCriteriaForSelected] = useState("");
+  const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(
+    null
+  );
+  const [markingCriteriaForSelected, setMarkingCriteriaForSelected] =
+    useState("");
 
-  const [scrollStates, setScrollStates] = useState<{ [subject: string]: { showScrollButtons: boolean } }>({});
+  const [scrollStates, setScrollStates] = useState<{
+    [subject: string]: { showScrollButtons: boolean };
+  }>({});
+  const [isListView, setIsListView] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
+  // Refs for textareas
+  const learningOutcomesRef = useRef<HTMLTextAreaElement>(null);
+  const markingCriteriaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Fetch assignments on mount
   useEffect(() => {
     fetch("/api/assignment")
       .then((res) => res.json())
@@ -90,7 +122,7 @@ export default function AssignmentListPage() {
   }, []);
 
   useEffect(() => {
-    if (viewMode === 'exams') {
+    if (viewMode === "exams") {
       fetch("/api/exams")
         .then((res) => res.json())
         .then((data: Exam[]) => setExams(data))
@@ -98,8 +130,24 @@ export default function AssignmentListPage() {
     }
   }, [viewMode]);
 
+  // Restore list/grid view preference
+  useEffect(() => {
+    setIsMounted(true);
+    const storedView = localStorage.getItem("adminListView");
+    if (storedView !== null) {
+      setIsListView(storedView === "true");
+    }
+  }, []);
+
+  // Store list/grid view preference
+  useEffect(() => {
+    if (isMounted) {
+      localStorage.setItem("adminListView", isListView.toString());
+    }
+  }, [isListView, isMounted]);
+
+  // Group assignments by subject
   const groupedAssignments = useMemo(() => {
-    if (!Array.isArray(assignments)) return {};
     return assignments.reduce((acc, assignment) => {
       const subj = assignment.subject;
       if (!acc[subj]) acc[subj] = [];
@@ -118,22 +166,28 @@ export default function AssignmentListPage() {
     }, {} as { [key: string]: Exam[] });
   }, [exams]);
 
+  // Refs for each subject section (for horizontal scrolling if needed)
   const rowRefs = useMemo(() => {
     const refs: { [subject: string]: React.RefObject<HTMLDivElement> } = {};
-    const keys = viewMode === 'assignments' 
-      ? Object.keys(groupedAssignments) 
-      : Object.keys(groupedExams);
+    const keys =
+      viewMode === "assignments"
+        ? Object.keys(groupedAssignments)
+        : Object.keys(groupedExams);
     for (const subj of keys) {
       refs[subj] = React.createRef<HTMLDivElement>();
     }
     return refs;
   }, [groupedAssignments, groupedExams, viewMode]);
 
+  // Check if horizontal scroll is needed
   useEffect(() => {
-    const newScrollStates: { [subject: string]: { showScrollButtons: boolean } } = {};
-    const keys = viewMode === 'assignments' 
-      ? Object.keys(groupedAssignments) 
-      : Object.keys(groupedExams);
+    const newScrollStates: {
+      [subject: string]: { showScrollButtons: boolean };
+    } = {};
+    const keys =
+      viewMode === "assignments"
+        ? Object.keys(groupedAssignments)
+        : Object.keys(groupedExams);
 
     for (const subj of keys) {
       const element = rowRefs[subj].current;
@@ -146,47 +200,108 @@ export default function AssignmentListPage() {
   }, [assignments, exams, groupedAssignments, groupedExams, rowRefs, viewMode]);
 
   const mentionData: SuggestionDataItem[] = [
-    { id: 'biology-prompt', display: 'biology-prompt' },
-    { id: 'history-prompt', display: 'history-prompt' },
+    { id: "biology-prompt", display: "biology-prompt" },
+    { id: "history-prompt", display: "history-prompt" },
   ];
+  // If you have special placeholders for biology, history
   const processTemplateText = (text: string) => {
     const templateMap: { [key: string]: string } = {
-      'biology-prompt': Biology,
-      'history-prompt': History,
+      "biology-prompt": Biology,
+      "history-prompt": History,
     };
     return text.replace(/@\[([^\]]+)\]\(([^)]+)\)/g, (match, display, id) => {
       return templateMap[id] || match;
     });
   };
 
+  // Handle subject changes
   const handleSubjectChange = (selectedOption: SubjectOption | null) => {
     if (
-      subject === 'Custom' &&
+      subject === "Custom" &&
       selectedOption &&
-      selectedOption.value !== 'Custom'
+      selectedOption.value !== "Custom"
     ) {
       const confirmChange = window.confirm(
-        'Changing the subject will reset your additional prompt. Do you want to proceed?'
+        "Changing the subject will reset your additional prompt. Do you want to proceed?"
       );
       if (!confirmChange) return;
-      setAdditionalPrompt('');
+      setAdditionalPrompt("");
     }
 
     setSelectedSubject(selectedOption);
-    setSubject(selectedOption ? selectedOption.value : '');
+    setSubject(selectedOption ? selectedOption.value : "");
 
     if (selectedOption) {
-      if (selectedOption.value === 'Biology') {
+      if (selectedOption.value === "Biology") {
         setAdditionalPrompt(`@[biology-prompt](biology-prompt)`);
-      } else if (selectedOption.value === 'History') {
+      } else if (selectedOption.value === "History") {
         setAdditionalPrompt(`@[history-prompt](history-prompt)`);
-      } else if (selectedOption.value === 'Custom') {
-        setAdditionalPrompt('');
+      } else if (selectedOption.value === "Custom") {
+        setAdditionalPrompt("");
       }
     } else {
-      setAdditionalPrompt('');
+      setAdditionalPrompt("");
     }
   };
+
+  /**
+   * autoResize:
+   *    - auto-resize up to 8 lines,
+   *    - if content is > 8 lines, then overflow: scroll.
+   */
+  const autoResize = useCallback((textarea: HTMLTextAreaElement) => {
+    if (!textarea) return;
+
+    // First, reset height so scrollHeight is always accurate
+    textarea.style.height = "auto";
+    textarea.style.overflowY = "hidden";
+
+    // Compute the line-height
+    const style = window.getComputedStyle(textarea);
+    const lineHeightStr = style.lineHeight;
+    // Fallback if parse fails
+    let lineHeight = parseInt(lineHeightStr, 10) || 20;
+
+    const scrollHeight = textarea.scrollHeight;
+    const maxHeight = lineHeight * 8; // 8 lines
+
+    // If the content would exceed 8 lines
+    if (scrollHeight > maxHeight) {
+      textarea.style.height = `${maxHeight}px`;
+      textarea.style.overflowY = "auto"; // show scroll
+    } else {
+      // Otherwise, just auto-fit
+      textarea.style.height = `${scrollHeight}px`;
+    }
+  }, []);
+
+  // autoResizeAllTextareas depends on autoResize, so also useCallback
+  const autoResizeAllTextareas = useCallback(() => {
+    if (learningOutcomesRef.current) autoResize(learningOutcomesRef.current);
+    if (markingCriteriaRef.current) autoResize(markingCriteriaRef.current);
+  }, [autoResize]);
+
+  // Whenever we open the form, recalc
+  useEffect(() => {
+    if (showForm) {
+      // small timeout ensures the DOM is updated
+      setTimeout(() => autoResizeAllTextareas(), 0);
+    }
+  }, [showForm, autoResizeAllTextareas]);
+
+  // re-run if learningOutcomes changes (and form is open)
+  useEffect(() => {
+    if (showForm) {
+      autoResizeAllTextareas();
+    }
+  }, [learningOutcomes, showForm, autoResizeAllTextareas]);
+
+  // re-run if markingCriteria changes (and form is open)
+  useEffect(() => {
+    if (showForm) {
+      autoResizeAllTextareas();
+    }
+  }, [markingCriteria, showForm, autoResizeAllTextareas]);
 
   const renderMentions = (text: string) => {
     const regex = /@\[([^\]]+)\]\(([^)]+)\)/g;
@@ -215,18 +330,21 @@ export default function AssignmentListPage() {
   const scrollLeft = (subj: string) => {
     const ref = rowRefs[subj].current;
     if (ref) {
-      ref.scrollBy({ top: 0, left: -300, behavior: 'smooth' });
+      ref.scrollBy({ top: 0, left: -300, behavior: "smooth" });
     }
   };
 
   const scrollRight = (subj: string) => {
     const ref = rowRefs[subj].current;
     if (ref) {
-      ref.scrollBy({ top: 0, left: 300, behavior: 'smooth' });
+      ref.scrollBy({ top: 0, left: 300, behavior: "smooth" });
     }
   };
 
-  function handleEditItem(type: "assignment" | "exam", item: Assignment | Exam) {
+  function handleEditItem(
+    type: "assignment" | "exam",
+    item: Assignment | Exam
+  ) {
     if (type === "assignment") {
       const assignment = item as Assignment;
       setTitle(assignment.title);
@@ -237,7 +355,9 @@ export default function AssignmentListPage() {
       setEditingAssignmentId(assignment.id);
       setShowForm(true);
 
-      const selectedOption = SubjectOptions.find(option => option.value === assignment.subject);
+      const selectedOption = SubjectOptions.find(
+        (option) => option.value === assignment.subject
+      );
       setSelectedSubject(selectedOption || null);
     } else {
       const exam = item as Exam;
@@ -245,12 +365,12 @@ export default function AssignmentListPage() {
       setExamSubject(exam.subject);
       setExamDate(exam.date);
       setEditingExamId(exam.id);
-      
+
       // Convert exam.questions to local questions state
       const convertedQuestions = exam.questions.map((q) => ({
         id: q.id,
         text: q.questionText,
-        markingCriteria: q.markingCriteria || ""
+        markingCriteria: q.markingCriteria || "",
       }));
       setQuestions(convertedQuestions);
       setSelectedQuestionId(null);
@@ -258,15 +378,10 @@ export default function AssignmentListPage() {
       setMarkingCriteriaForSelected("");
 
       setShowExamEditForm(true);
-
-      
     }
   }
 
-  async function handleDeleteItem(
-    type: "assignment" | "exam",
-    id: number
-  ) {
+  async function handleDeleteItem(type: "assignment" | "exam", id: number) {
     try {
       const endpoint = type === "assignment" ? "/api/assignment" : "/api/exams";
       const response = await fetch(`${endpoint}/${id}`, {
@@ -275,10 +390,10 @@ export default function AssignmentListPage() {
 
       if (response.ok) {
         if (type === "assignment") {
-          setAssignments(assignments.filter(a => a.id !== id));
+          setAssignments(assignments.filter((a) => a.id !== id));
           setSuccessMessage("Assignment deleted successfully!");
         } else {
-          setExams(exams.filter(e => e.id !== id));
+          setExams(exams.filter((e) => e.id !== id));
           setSuccessMessage("Exam deleted successfully!");
         }
       } else {
@@ -296,25 +411,38 @@ export default function AssignmentListPage() {
       return;
     }
 
+    // Some special checks
     if (
-      selectedSubject?.value === 'Custom' &&
+      selectedSubject?.value === "Custom" &&
       /@\[([^\]]+)\]\(([^)]+)\)/g.test(additionalPrompt)
     ) {
-      alert('Using custom prompt with tags might create issues.');
+      alert("Using custom prompt with tags might create issues.");
     }
 
-    if (selectedSubject?.value === 'Biology' && additionalPrompt.trim() !== '@[biology-prompt](biology-prompt)') {
-      alert('For Biology subject, the Additional Prompt should contain only the biology-prompt tag.');
+    if (
+      selectedSubject?.value === "Biology" &&
+      additionalPrompt.trim() !== "@[biology-prompt](biology-prompt)"
+    ) {
+      alert(
+        "For Biology subject, the Additional Prompt should contain only the biology-prompt tag."
+      );
       return;
     }
 
-    if (selectedSubject?.value === 'History' && additionalPrompt.trim() !== '@[history-prompt](history-prompt)') {
-      alert('For History subject, the Additional Prompt should contain only the history-prompt tag.');
+    if (
+      selectedSubject?.value === "History" &&
+      additionalPrompt.trim() !== "@[history-prompt](history-prompt)"
+    ) {
+      alert(
+        "For History subject, the Additional Prompt should contain only the history-prompt tag."
+      );
       return;
     }
 
     try {
-      const url = editingAssignmentId ? `/api/assignment/${editingAssignmentId}` : "/api/assignment";
+      const url = editingAssignmentId
+        ? `/api/assignment/${editingAssignmentId}`
+        : "/api/assignment";
       const method = editingAssignmentId ? "PUT" : "POST";
       const response = await fetch(url, {
         method,
@@ -333,7 +461,11 @@ export default function AssignmentListPage() {
       if (response.ok) {
         const savedAssignment = await response.json();
         if (editingAssignmentId) {
-          setAssignments(assignments.map((a) => a.id === editingAssignmentId ? savedAssignment : a));
+          setAssignments(
+            assignments.map((a) =>
+              a.id === editingAssignmentId ? savedAssignment : a
+            )
+          );
           setSuccessMessage("Assignment updated successfully!");
         } else {
           setAssignments([...assignments, savedAssignment]);
@@ -371,7 +503,7 @@ export default function AssignmentListPage() {
       const newQuestion = {
         id: Date.now(),
         text: newQuestionText.trim(),
-        markingCriteria: ""
+        markingCriteria: "",
       };
       setQuestions([...questions, newQuestion]);
       setNewQuestionText("");
@@ -385,7 +517,7 @@ export default function AssignmentListPage() {
 
   function handleSelectQuestion(id: number) {
     setSelectedQuestionId(id);
-    const q = questions.find(q => q.id === id);
+    const q = questions.find((q) => q.id === id);
     if (q) {
       setMarkingCriteriaForSelected(q.markingCriteria || "");
     }
@@ -393,7 +525,11 @@ export default function AssignmentListPage() {
 
   function handleMarkingCriteriaChange(val: string) {
     setMarkingCriteriaForSelected(val);
-    setQuestions(questions.map(q => q.id === selectedQuestionId ? { ...q, markingCriteria: val } : q));
+    setQuestions(
+      questions.map((q) =>
+        q.id === selectedQuestionId ? { ...q, markingCriteria: val } : q
+      )
+    );
   }
 
   const handleExamSubmit = async (e: React.FormEvent) => {
@@ -403,9 +539,9 @@ export default function AssignmentListPage() {
       return;
     }
 
-    const questionsArray = questions.map(q => ({
+    const questionsArray = questions.map((q) => ({
       questionText: q.text,
-      markingCriteria: q.markingCriteria || ""
+      markingCriteria: q.markingCriteria || "",
     }));
 
     try {
@@ -437,7 +573,7 @@ export default function AssignmentListPage() {
       } else {
         setExamErrorMessage("Failed to add exam");
       }
-    } catch (error) { 
+    } catch (error) {
       console.error(error);
       setExamErrorMessage("An error occurred while adding the exam");
     }
@@ -446,15 +582,14 @@ export default function AssignmentListPage() {
   const handleUpdateExam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingExamId) return;
-  
-const questionsArray = questions.map((q) => ({
-  // Only pass q.id if it’s a real DB id (not a random large number)
-  id: undefined,
-  questionText: q.text,
-  markingCriteria: q.markingCriteria || "",
-}));
 
-  
+    const questionsArray = questions.map((q) => ({
+      // Only pass q.id if it’s a real DB id (not a random large number)
+      id: undefined,
+      questionText: q.text,
+      markingCriteria: q.markingCriteria || "",
+    }));
+
     try {
       const response = await fetch(`/api/exams/${editingExamId}`, {
         method: "PUT",
@@ -466,19 +601,18 @@ const questionsArray = questions.map((q) => ({
           questions: questionsArray,
         }),
       });
-      
-  
+
       if (response.ok) {
         const updatedExam = await response.json();
-  
+
         // Update the exams list with the updated exam
         setExams(
           exams.map((exam) => (exam.id === editingExamId ? updatedExam : exam))
         );
-  
+
         // Reset the form and state variables
         resetExamForm();
-  
+
         // Set a success message if needed
         setSuccessMessage("Exam updated successfully!");
       } else {
@@ -490,34 +624,102 @@ const questionsArray = questions.map((q) => ({
     }
   };
 
-function resetExamForm() {
-  setEditingExamId(null);
-  setShowExamEditForm(false);
-  setExamTitle("");
-  setExamSubject("");
-  setExamDate("");
-  setExamErrorMessage(null);
-  setExamSuccessMessage(null);
-  // Reset question states
-  setQuestions([]);
-  setNewQuestionText("");
-  setSelectedQuestionId(null);
-  setMarkingCriteriaForSelected("");
-}
-
-function handleDeleteQuestion(id: number) {
-  setQuestions((prevQuestions) => prevQuestions.filter((q) => q.id !== id));
-  // If the deleted question was currently selected, reset selection
-  if (selectedQuestionId === id) {
+  function resetExamForm() {
+    setEditingExamId(null);
+    setShowExamEditForm(false);
+    setExamTitle("");
+    setExamSubject("");
+    setExamDate("");
+    setExamErrorMessage(null);
+    setExamSuccessMessage(null);
+    // Reset question states
+    setQuestions([]);
+    setNewQuestionText("");
     setSelectedQuestionId(null);
     setMarkingCriteriaForSelected("");
   }
-}
 
-  function AssignmentCard({ assignment }: { assignment: Assignment }) {
-    return (
-      <div className={styles.assignmentCard}>
-        <div className={styles.customCard}>
+  function handleDeleteQuestion(id: number) {
+    setQuestions((prevQuestions) => prevQuestions.filter((q) => q.id !== id));
+    // If the deleted question was currently selected, reset selection
+    if (selectedQuestionId === id) {
+      setSelectedQuestionId(null);
+      setMarkingCriteriaForSelected("");
+    }
+  }
+
+  function AssignmentCard({
+    assignment,
+    isListView,
+  }: {
+    assignment: Assignment;
+    isListView: boolean;
+  }) {
+    if (isListView) {
+      return (
+        <Card
+          size="1"
+          className={`${styles.listAssignmentCard} 
+                      transition-all 
+                      dark:bg-gray-800 dark:text-white
+                      hover:dark:bg-gray-700`}
+        >
+          <Flex gap="3" align="center" p="2" justify="between">
+            <Flex gap="3" align="center" style={{ flex: 1 }}>
+              <div className={styles.customAvatar}>
+                {assignment.subject[0] || "A"}
+              </div>
+              <Box className="flex-1">
+                <Text
+                  as="div"
+                  size="2"
+                  weight="bold"
+                  style={{ marginBottom: "-2px" }}
+                >
+                  {assignment.title}
+                </Text>
+                <Text
+                  as="div"
+                  size="2"
+                  color="gray"
+                  style={{ lineHeight: "1.2" }}
+                >
+                  {assignment.subject} &middot; Updated{" "}
+                  {new Date(assignment.updatedAt).toDateString()}
+                </Text>
+              </Box>
+            </Flex>
+            <Flex gap="2" align="center" justify="end">
+              <button
+                onClick={() => handleEditItem("assignment", assignment)}
+                className={`${styles.editButton} dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100`}
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDeleteItem("assignment", assignment.id)}
+                className={`${styles.deleteButton} dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100`}
+              >
+                Delete
+              </button>
+              <Link
+                href={`/admin/assignment/${assignment.id}`}
+                className={`${styles.assignmentsLink} dark:text-blue-300`}
+              >
+                <CaretRightIcon height={24} width={24} />
+              </Link>
+            </Flex>
+          </Flex>
+        </Card>
+      );
+    } else {
+      return (
+        <div
+          className={`${styles.customCard} 
+                      dark:bg-gray-800 dark:text-white
+                      transition-all 
+                      hover:dark:bg-gray-700`}
+        >
           <div className={styles.customAvatar}>
             {assignment.subject[0] || "A"}
           </div>
@@ -530,35 +732,101 @@ function handleDeleteQuestion(id: number) {
           <div className={styles.cardActions}>
             <button
               onClick={() => handleEditItem("assignment", assignment)}
-              className={styles.editButton}
+              className={`${styles.editButton} dark:bg-gray-500 dark:hover:bg-gray-600 dark:text-gray-100`}
             >
               Edit
             </button>
             <button
               onClick={() => handleDeleteItem("assignment", assignment.id)}
-              className={styles.deleteButton}
+              className={`${styles.deleteButton} dark:bg-gray-500 dark:hover:bg-gray-600 dark:text-gray-100`}
             >
               Delete
             </button>
             <a
-              className={styles.assignmentsLink}
-              href={`/assignment/${assignment.id}`}
+              className={`${styles.assignmentsLink} dark:text-blue-300`}
+              href={`/admin/assignment/${assignment.id}`}
             >
               View Details
             </a>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
   }
 
-  function ExamCard({ exam }: { exam: Exam }) {
-    return (
-      <div className={styles.assignmentCard}>
-        <div className={styles.customCard}>
-          <div className={styles.customAvatar}>
-            {exam.subject[0] || "E"}
-          </div>
+  function ExamCard({ exam, isListView }: { exam: Exam; isListView: boolean }) {
+    if (isListView) {
+      // ======== LIST VIEW (line view) ========
+      return (
+        <Card
+          size="1"
+          className={`
+            ${styles.listAssignmentCard} 
+            transition-all 
+            dark:bg-gray-800 dark:text-white
+            hover:dark:bg-gray-700
+          `}
+        >
+          <Flex gap="3" align="center" p="2" justify="between">
+            <Flex gap="3" align="center" style={{ flex: 1 }}>
+              <div className={styles.customAvatar}>
+                {exam.subject[0] || "E"}
+              </div>
+              <Box className="flex-1">
+                <Text
+                  as="div"
+                  size="2"
+                  weight="bold"
+                  style={{ marginBottom: "-2px" }}
+                >
+                  {exam.title}
+                </Text>
+                <Text
+                  as="div"
+                  size="2"
+                  color="gray"
+                  style={{ lineHeight: "1.2" }}
+                >
+                  {exam.subject} &middot; Updated{" "}
+                  {new Date(exam.date).toDateString()}
+                </Text>
+              </Box>
+            </Flex>
+            <Flex gap="2" align="center" justify="end">
+              <button
+                onClick={() => handleEditItem("exam", exam)}
+                className={styles.editButton}
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDeleteItem("exam", exam.id)}
+                className={styles.deleteButton}
+              >
+                Delete
+              </button>
+              <Link
+                href={`/admin/UploadCSV?examId=${exam.id}`}
+                className={styles.assignmentsLink}
+              >
+                <CaretRightIcon height={24} width={24} />
+              </Link>
+            </Flex>
+          </Flex>
+        </Card>
+      );
+    } else {
+      // ======== GRID VIEW ========
+      return (
+        <div
+          className={`
+            ${styles.customCard} 
+            dark:bg-gray-800 dark:text-white
+            transition-all 
+            hover:dark:bg-gray-700
+          `}
+        >
+          <div className={styles.customAvatar}>{exam.subject[0] || "E"}</div>
           <div className={styles.cardContent}>
             <div className={styles.cardTitle}>{exam.title}</div>
             <div className={styles.cardSubtitle}>
@@ -571,312 +839,450 @@ function handleDeleteQuestion(id: number) {
           <div className={styles.cardActions}>
             <button
               onClick={() => handleEditItem("exam", exam)}
-              className={styles.editButton}
+              className={`
+                ${styles.editButton} 
+                dark:bg-gray-500 dark:hover:bg-gray-600 dark:text-gray-100
+              `}
             >
               Edit
             </button>
             <button
               onClick={() => handleDeleteItem("exam", exam.id)}
-              className={styles.deleteButton}
+              className={`
+                ${styles.deleteButton} 
+                dark:bg-gray-500 dark:hover:bg-gray-600 dark:text-gray-100
+              `}
             >
               Delete
             </button>
             <a
-              className={styles.assignmentsLink}
+              className={`
+                ${styles.assignmentsLink}
+                dark:text-blue-300
+              `}
               href={`/admin/UploadCSV?examId=${exam.id}`}
             >
               View Details
             </a>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
   }
 
   return (
-    <div className={styles.assignmentPage}>
-      <div className={styles.assignmentContainer}>
-        {!showForm && !showExamForm && !showExamEditForm ? (
-          <div className={styles.assignmentList}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Breadcrumb>
-                <BreadcrumbList>
-                  <BreadcrumbItem>
-                    <BreadcrumbLink href="/">Home</BreadcrumbLink>
-                  </BreadcrumbItem>
-                  <BreadcrumbSeparator />
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>Teachers</BreadcrumbPage>
-                  </BreadcrumbItem>
-                </BreadcrumbList>
-              </Breadcrumb>
-            </div>
-            <Container className="p-8">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                <button 
-                  className="toggle-button"
-                  onClick={() => setViewMode('assignments')}
-                  style={{ fontWeight: viewMode === 'assignments' ? 'bold' : 'normal' }}
-                >
-                  Assignment List
-                </button>
-                <button 
-                  className="toggle-button"
-                  onClick={() => setViewMode('exams')}
-                  style={{ fontWeight: viewMode === 'exams' ? 'bold' : 'normal' }}
-                >
-                  Exams
-                </button>
-              </div>
-
-              {viewMode === 'assignments' && (
-                <>
-                  {Object.entries(groupedAssignments).map(([subj, subjectAssignments]) => {
-                    const { showScrollButtons = false } = scrollStates[subj] || {};
-                    return (
-                      <div key={subj} className={styles.subjectSection}>
-                        <Heading as="h2" size="5" className="subjectHeading">{subj}</Heading>
-                        <div className={styles.cardRowContainer}>
-                          {showScrollButtons && (
-                            <button 
-                              className={styles.scrollButtonLeft} 
-                              onClick={() => scrollLeft(subj)}
-                              aria-label="Scroll left"
-                            >
-                              <CaretLeftIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
-                            </button>
-                          )}
-                          <Flex className={styles.cardRow} ref={rowRefs[subj]}>
-                            {subjectAssignments.map((assignment) => (
-                              <AssignmentCard key={assignment.id} assignment={assignment} />
-                            ))}
-                          </Flex>
-                          {showScrollButtons && (
-                            <button 
-                              className={styles.scrollButtonRight} 
-                              onClick={() => scrollRight(subj)}
-                              aria-label="Scroll right"
-                            >
-                              <CaretRightIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <button onClick={handleAddAssignment} className={styles.addButton}>
-                    Add New Assignment
-                  </button>
-                </>
-              )}
-
-              {viewMode === 'exams' && (
-                <>
-                  {Object.entries(groupedExams).map(([subj, subjectExams]) => {
-                    const { showScrollButtons = false } = scrollStates[subj] || {};
-                    return (
-                      <div key={subj} className={styles.subjectSection}>
-                        <Heading as="h2" size="5" className="subjectHeading">{subj}</Heading>
-                        <div className={styles.cardRowContainer}>
-                          {showScrollButtons && (
-                            <button 
-                              className={styles.scrollButtonLeft} 
-                              onClick={() => scrollLeft(subj)}
-                              aria-label="Scroll left"
-                            >
-                              <CaretLeftIcon  style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1}}/>
-                            </button>
-                          )}
-                          <Flex className={styles.cardRow} ref={rowRefs[subj]}>
-                            {subjectExams.map((exam) => (
-                              <ExamCard key={exam.id} exam={exam} />
-                            ))}
-                          </Flex>
-                          {showScrollButtons && (
-                            <button 
-                              className={styles.scrollButtonRight} 
-                              onClick={() => scrollRight(subj)}
-                              aria-label="Scroll right"
-                            >
-                              <CaretRightIcon style={{ color: '#000', width: '24px', height: '24px', stroke: 'currentColor', strokeWidth: 1 }} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {/* BUTTON TO ADD NEW EXAM */}
-                  <button onClick={() => {
-                    setShowExamForm(true);
-                    // Reset exam states for adding a new one
-                    setExamTitle("");
-                    setExamSubject("");
-                    setExamDate("");
-                    setQuestions([]);
-                    setNewQuestionText("");
-                    setSelectedQuestionId(null);
-                    setMarkingCriteriaForSelected("");
-                    setExamErrorMessage(null);
-                    setExamSuccessMessage(null);
-                  }} className={styles.addButton}>
-                    Add New Exam
-                  </button>
-                </>
-              )}
-            </Container>
-          </div>
-        ) : null}
-
-        {/* FORM FOR ADDING/EDITING ASSIGNMENT */}
-        {showForm && !showExamForm && !showExamEditForm && (
-          <div className={styles.assignmentForm}>
-            <h3>
-              {editingAssignmentId ? "Edit Assignment" : "Add New Assignment"}
-            </h3>
-            {errorMessage && <p className={styles.errorMessage}>{errorMessage}</p>}
-            {successMessage && (
-              <p className={styles.successMessage}>{successMessage}</p>
-            )}
-            <form onSubmit={handleSubmitAssignment}>
-              <div className={styles.formGroup}>
-                <label className={styles.labels}>Title:</label>
-                <input
-                  type="text"
-                  className={styles.input}
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
-                />
-              </div>
-              <div className={styles.formGroup}>
-                <label className={styles.labels}>Learning Outcomes:</label>
-                <textarea
-                  className={styles.textarea}
-                  value={learningOutcomes}
-                  onChange={(e) => setLearningOutcomes(e.target.value)}
-                  required
-                  rows={4}
-                />
-              </div>
-              <div className={styles.formGroup}>
-                <label className={styles.labels}>Marking Criteria:</label>
-                <textarea
-                  className={styles.textarea}
-                  value={markingCriteria}
-                  onChange={(e) => setMarkingCriteria(e.target.value)}
-                  required
-                  rows={4}
-                />
-              </div>
-              <div className={styles.formGroup}>
-                <label className={styles.labels}>Subject:</label>
-                <div className={styles.selectMenuContainer}>
-                  <SelectMenu onChange={handleSubjectChange} value={selectedSubject} />
-                </div>
-              </div>
-              <div className={styles.formGroup}>
-                <label className={styles.labels}>Additional Prompt:</label>
-                {selectedSubject?.value === 'Custom' ? (
-                  <MentionsInput
-                    value={additionalPrompt}
-                    onChange={(event, newValue) => setAdditionalPrompt(newValue)}
-                    placeholder="Type '@' to select a prompt..."
-                    className={styles.mentions}
-                    allowSuggestionsAboveCursor={true}
-                    style={{ height: '200px' }}
-                    singleLine={false}
-                  >
-                    <Mention
-                      trigger="@"
-                      data={mentionData}
-                      markup="@[$__display__]($__id__)"
-                      appendSpaceOnAdd={true}
-                      renderSuggestion={(suggestion, search, highlightedDisplay, index, focused) => (
-                        <div className={`${styles.suggestionItem} ${focused ? styles.focused : ''}`}>
-                          {highlightedDisplay}
-                        </div>
-                      )}
-                    />
-                  </MentionsInput>
-                ) : (
-                  <div className={`${styles.mentions} ${styles.readOnly}`}>
-                    {renderMentions(additionalPrompt)}
-                  </div>
-                )}
-              </div>
-              <button type="submit" className={styles.submitButton}>
-                {editingAssignmentId ? "Save" : "Add Assignment"}
-              </button>
-              <button
-                type="button"
-                onClick={resetAssignmentForm}
-                className={styles.cancelButton}
+    isMounted && (
+      <div
+        className={`${styles.assignmentPage} dark:bg-[#1F1F1F] dark:text-white`}
+      >
+        <div className={styles.assignmentContainer}>
+          {!showForm && !showExamForm && !showExamEditForm ? (
+            <div className={styles.assignmentList}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
               >
-                Cancel
-              </button>
-            </form>
-          </div>
-        )}
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbLink href="/">Home</BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage>Teachers</BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
+              </div>
+              <Container>
+                <Flex align="center" justify="between" gap="2" mb="4">
+                  {/* Left side: two buttons in a small horizontal Flex */}
+                  <Flex align="center" gap="2">
+                    <button
+                      className="toggle-button dark:text-white"
+                      onClick={() => setViewMode("assignments")}
+                      style={{
+                        fontWeight:
+                          viewMode === "assignments" ? "bold" : "normal",
+                      }}
+                    >
+                      Assignment List
+                    </button>
+                    <button
+                      className="toggle-button"
+                      onClick={() => setViewMode("exams")}
+                      style={{
+                        fontWeight: viewMode === "exams" ? "bold" : "normal",
+                      }}
+                    >
+                      Exams
+                    </button>
+                  </Flex>
 
-        {/* REUSABLE EXAM FORM FOR ADDING EXAM */}
-        {showExamForm && !showForm && !showExamEditForm && (
-  <ExamForm
-    titleHeading="Add New Exam"
-    errorMessage={examErrorMessage}
-    successMessage={examSuccessMessage}
-    examTitle={examTitle}
-    examDate={examDate}
-    examSubject={examSubject}
-    questions={questions}
-    newQuestionText={newQuestionText}
-    selectedQuestionId={selectedQuestionId}
-    markingCriteriaForSelected={markingCriteriaForSelected}
-    onExamTitleChange={setExamTitle}
-    onExamDateChange={setExamDate}
-    onExamSubjectChange={setExamSubject}
-    onAddQuestion={handleAddQuestion}
-    onNewQuestionTextChange={setNewQuestionText}
-    onSelectQuestion={handleSelectQuestion}
-    onMarkingCriteriaChange={handleMarkingCriteriaChange}
-    onDeleteQuestion={handleDeleteQuestion} // pass in delete handler
-    onSubmit={handleExamSubmit}
-    onCancel={() => {
-      setShowExamForm(false);
-      resetExamForm(); // Use resetExamForm instead of resetExamStates
-    }}
-    submitButtonText="Save Exam"
-  />
-)}
+                  {/* Right side: toggle button for grid/list */}
+                  <button
+                    onClick={() => setIsListView((prev) => !prev)}
+                    className={`${styles.viewToggleButton} dark:hover:bg-transparent dark:text-white`}
+                  >
+                    {isListView ? (
+                      <ListBulletIcon width="24" height="24" />
+                    ) : (
+                      <GridIcon width="24" height="24" />
+                    )}
+                  </button>
+                </Flex>
 
-{showExamEditForm && !showForm && !showExamForm && (
-  <ExamForm
-    titleHeading="Edit Exam"
-    errorMessage={examErrorMessage}
-    successMessage={examSuccessMessage}
-    examTitle={examTitle}
-    examDate={examDate}
-    examSubject={examSubject}
-    questions={questions}
-    newQuestionText={newQuestionText}
-    selectedQuestionId={selectedQuestionId}
-    markingCriteriaForSelected={markingCriteriaForSelected}
-    onExamTitleChange={setExamTitle}
-    onExamDateChange={setExamDate}
-    onExamSubjectChange={setExamSubject}
-    onAddQuestion={handleAddQuestion}
-    onNewQuestionTextChange={setNewQuestionText}
-    onSelectQuestion={handleSelectQuestion}
-    onMarkingCriteriaChange={handleMarkingCriteriaChange}
-    onDeleteQuestion={handleDeleteQuestion} // pass in delete handler
-    onSubmit={handleUpdateExam}
-    onCancel={() => {
-      setShowExamForm(false);
-      resetExamForm(); // Use resetExamForm instead of resetExamStates
-    }}
-    submitButtonText="Save Changes"
-  />
-        )}
+                {viewMode === "assignments" && (
+                  <>
+                    {isListView
+                      ? Object.entries(groupedAssignments).map(
+                          ([subj, subjectAssignments]) => (
+                            <div key={subj} className={styles.subjectSection}>
+                              <Heading
+                                as="h2"
+                                size="5"
+                                className="subjectHeading dark:text-white"
+                              >
+                                {subj}
+                              </Heading>
+                              <div className={styles.listContainer}>
+                                {subjectAssignments.map((assignment) => (
+                                  <AssignmentCard
+                                    key={assignment.id}
+                                    assignment={assignment}
+                                    isListView={isListView}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        )
+                      : Object.entries(groupedAssignments).map(
+                          ([subj, subjectAssignments]) => (
+                            <div key={subj} className={styles.subjectSection}>
+                              <Heading
+                                as="h2"
+                                size="5"
+                                className="subjectHeading dark:text-white"
+                              >
+                                {subj}
+                              </Heading>
+                              <div className={styles.cardContainer}>
+                                {subjectAssignments.map((assignment) => (
+                                  <AssignmentCard
+                                    key={assignment.id}
+                                    assignment={assignment}
+                                    isListView={isListView}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        )}
+                    <button
+                      onClick={handleAddAssignment}
+                      className={`
+                      ${styles.addButton} 
+                      dark:bg-gray-700 
+                      dark:hover:bg-gray-600 
+                      dark:text-white
+                    `}
+                    >
+                      Add New Assignment
+                    </button>
+                  </>
+                )}
+
+                {viewMode === "exams" && (
+                  <>
+                    {Object.entries(groupedExams).map(
+                      ([subj, subjectExams]) => {
+                        const { showScrollButtons = false } =
+                          scrollStates[subj] || {};
+                        return (
+                          <div key={subj} className={styles.subjectSection}>
+                            <Heading
+                              as="h2"
+                              size="5"
+                              className="subjectHeading"
+                            >
+                              {subj}
+                            </Heading>
+                            <div className={styles.listContainer}>
+                              {isListView ? (
+                                /* === LIST container === */
+                                <div className={styles.listContainer}>
+                                  {subjectExams.map((exam) => (
+                                    <ExamCard
+                                      key={exam.id}
+                                      exam={exam}
+                                      isListView={true}
+                                    />
+                                  ))}
+                                </div>
+                              ) : (
+                                /* === GRID container with scroll buttons === */
+                                <div className={styles.cardRowContainer}>
+                                  <Flex
+                                    className={styles.cardRow}
+                                    ref={rowRefs[subj]}
+                                  >
+                                    {subjectExams.map((exam) => (
+                                      <ExamCard
+                                        key={exam.id}
+                                        exam={exam}
+                                        isListView={false}
+                                      />
+                                    ))}
+                                  </Flex>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+                    )}
+                    {/* BUTTON TO ADD NEW EXAM */}
+                    <button
+                      onClick={() => {
+                        setShowExamForm(true);
+                        // Reset exam states for adding a new one
+                        setExamTitle("");
+                        setExamSubject("");
+                        setExamDate("");
+                        setQuestions([]);
+                        setNewQuestionText("");
+                        setSelectedQuestionId(null);
+                        setMarkingCriteriaForSelected("");
+                        setExamErrorMessage(null);
+                        setExamSuccessMessage(null);
+                      }}
+                      className={styles.addButton}
+                    >
+                      Add New Exam
+                    </button>
+                  </>
+                )}
+              </Container>
+            </div>
+          ) : null}
+
+          {/* FORM FOR ADDING/EDITING ASSIGNMENT */}
+          {showForm && !showExamForm && !showExamEditForm && (
+            <div className={styles.assignmentForm}>
+              <h3 className="dark:text-white">
+                {editingAssignmentId ? "Edit Assignment" : "Add New Assignment"}
+              </h3>
+              {errorMessage && (
+                <p className={`${styles.errorMessage} dark:text-red-300`}>
+                  {errorMessage}
+                </p>
+              )}
+              {successMessage && (
+                <p className={`${styles.successMessage} dark:text-green-300`}>
+                  {successMessage}
+                </p>
+              )}
+              <form onSubmit={handleSubmitAssignment}>
+                <div className={styles.formGroup}>
+                  <label className={`${styles.labels} dark:text-gray-300`}>
+                    Title:
+                  </label>
+                  <input
+                    type="text"
+                    className={`${styles.input} dark:bg-gray-700 dark:text-white`}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label className={`${styles.labels} dark:text-gray-300`}>
+                    Learning Outcomes:
+                  </label>
+                  <textarea
+                    ref={learningOutcomesRef}
+                    className={`${styles.textarea} dark:bg-gray-700 dark:text-white`}
+                    value={learningOutcomes}
+                    onChange={(e) => {
+                      setLearningOutcomes(e.target.value);
+                      autoResizeAllTextareas();
+                    }}
+                    rows={1}
+                    required
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label className={`${styles.labels} dark:text-gray-300`}>
+                    Marking Criteria:
+                  </label>
+                  <textarea
+                    ref={markingCriteriaRef}
+                    className={`${styles.textarea} dark:bg-gray-700 dark:text-white`}
+                    value={markingCriteria}
+                    onChange={(e) => {
+                      setMarkingCriteria(e.target.value);
+                      autoResizeAllTextareas();
+                    }}
+                    rows={1}
+                    required
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label className={`${styles.labels} dark:text-gray-300`}>
+                    Subject:
+                  </label>
+                  <div className={styles.selectMenuContainer}>
+                    <SelectMenu
+                      onChange={handleSubjectChange}
+                      value={selectedSubject}
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label className={`${styles.labels} dark:text-gray-300`}>
+                    Additional Prompt:
+                  </label>
+                  {selectedSubject?.value === "Custom" ? (
+                    <MentionsInput
+                      value={additionalPrompt}
+                      onChange={(event, newValue) =>
+                        setAdditionalPrompt(newValue)
+                      }
+                      placeholder="Type '@' to select a prompt..."
+                      className={`${styles.mentions} dark:bg-gray-700 dark:text-white mb-1.5`}
+                      allowSuggestionsAboveCursor={true}
+                      style={{ height: "200px" }}
+                      singleLine={false}
+                    >
+                      <Mention
+                        trigger="@"
+                        data={mentionData}
+                        markup="@[$__display__]($__id__)"
+                        appendSpaceOnAdd={true}
+                        renderSuggestion={(
+                          suggestion,
+                          search,
+                          highlightedDisplay,
+                          index,
+                          focused
+                        ) => (
+                          <div
+                            className={`
+                          ${styles.suggestionItem} 
+                          ${focused ? styles.focused : ""} 
+                          dark:text-white 
+                          dark:bg-gray-600
+                        `}
+                          >
+                            {highlightedDisplay}
+                          </div>
+                        )}
+                      />
+                    </MentionsInput>
+                  ) : (
+                    <div
+                      className={`
+                    ${styles.mentions} 
+                    ${styles.readOnly}
+                    dark:bg-gray-800 dark:text-white mb-5
+                  `}
+                    >
+                      {renderMentions(additionalPrompt)}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className={`
+                    ${styles.submitButton} 
+                    dark:bg-green-700 dark:hover:bg-green-600 dark:text-white
+                  `}
+                >
+                  {editingAssignmentId ? "Save" : "Add Assignment"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetAssignmentForm}
+                  className={`
+                    ${styles.cancelButton}
+                    dark:bg-red-700 dark:hover:bg-red-600 dark:text-white
+                  `}
+                >
+                  Cancel
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* REUSABLE EXAM FORM FOR ADDING EXAM */}
+          {showExamForm && !showForm && !showExamEditForm && (
+            <ExamForm
+              titleHeading="Add New Exam"
+              errorMessage={examErrorMessage}
+              successMessage={examSuccessMessage}
+              examTitle={examTitle}
+              examDate={examDate}
+              examSubject={examSubject}
+              questions={questions}
+              newQuestionText={newQuestionText}
+              selectedQuestionId={selectedQuestionId}
+              markingCriteriaForSelected={markingCriteriaForSelected}
+              onExamTitleChange={setExamTitle}
+              onExamDateChange={setExamDate}
+              onExamSubjectChange={setExamSubject}
+              onAddQuestion={handleAddQuestion}
+              onNewQuestionTextChange={setNewQuestionText}
+              onSelectQuestion={handleSelectQuestion}
+              onMarkingCriteriaChange={handleMarkingCriteriaChange}
+              onDeleteQuestion={handleDeleteQuestion} // pass in delete handler
+              onSubmit={handleExamSubmit}
+              onCancel={() => {
+                setShowExamForm(false);
+                resetExamForm(); // Use resetExamForm instead of resetExamStates
+              }}
+              submitButtonText="Save Exam"
+            />
+          )}
+
+          {showExamEditForm && !showForm && !showExamForm && (
+            <ExamForm
+              titleHeading="Edit Exam"
+              errorMessage={examErrorMessage}
+              successMessage={examSuccessMessage}
+              examTitle={examTitle}
+              examDate={examDate}
+              examSubject={examSubject}
+              questions={questions}
+              newQuestionText={newQuestionText}
+              selectedQuestionId={selectedQuestionId}
+              markingCriteriaForSelected={markingCriteriaForSelected}
+              onExamTitleChange={setExamTitle}
+              onExamDateChange={setExamDate}
+              onExamSubjectChange={setExamSubject}
+              onAddQuestion={handleAddQuestion}
+              onNewQuestionTextChange={setNewQuestionText}
+              onSelectQuestion={handleSelectQuestion}
+              onMarkingCriteriaChange={handleMarkingCriteriaChange}
+              onDeleteQuestion={handleDeleteQuestion} // pass in delete handler
+              onSubmit={handleUpdateExam}
+              onCancel={() => {
+                setShowExamForm(false);
+                resetExamForm(); // Use resetExamForm instead of resetExamStates
+              }}
+              submitButtonText="Save Changes"
+            />
+          )}
+        </div>
       </div>
-    </div>
+    )
   );
 }
